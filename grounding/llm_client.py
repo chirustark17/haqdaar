@@ -1,29 +1,26 @@
-"""LLM client for Haqdaar — talks to the Azure OpenAI (Foundry) deployment.
+"""LLM client for Haqdaar — talks to the Foundry model deployment via the OpenAI v1 client.
 
 Reads configuration from environment variables (.env). No secrets are hardcoded.
 """
 
 import os
 from dotenv import load_dotenv
-from openai import AzureOpenAI
+from openai import OpenAI
 
 load_dotenv()
 
-API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
 
-
-def get_client() -> AzureOpenAI:
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+def get_client() -> OpenAI:
+    base_url = os.getenv("AZURE_OPENAI_ENDPOINT")
     api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    if not endpoint or not api_key:
+    if not base_url or not api_key:
         raise RuntimeError(
             "Missing AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY. Check your .env file."
         )
-    return AzureOpenAI(azure_endpoint=endpoint, api_key=api_key, api_version=API_VERSION)
+    return OpenAI(base_url=base_url, api_key=api_key)
 
 
 def ask(prompt: str) -> str:
-    """Send a single user prompt to the deployed model and return its reply."""
     deployment = os.getenv("AZURE_AI_MODEL_DEPLOYMENT")
     if not deployment:
         raise RuntimeError("Missing AZURE_AI_MODEL_DEPLOYMENT in .env.")
@@ -37,6 +34,11 @@ def ask(prompt: str) -> str:
 
 
 if __name__ == "__main__":
+    print("--- Haqdaar connectivity check ---")
+    print("base_url  :", os.getenv("AZURE_OPENAI_ENDPOINT", "(NOT SET)"))
+    print("deployment:", os.getenv("AZURE_AI_MODEL_DEPLOYMENT", "(NOT SET)"))
+    print("api_key set:", bool(os.getenv("AZURE_OPENAI_API_KEY")))
+    print("----------------------------------")
     try:
         reply = ask("In one sentence, what is a government welfare scheme?")
         print("Connection OK. Model replied:\n")
