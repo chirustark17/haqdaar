@@ -2,17 +2,15 @@ import streamlit as st
 
 st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="centered")
 
-PRESET_SCENARIOS = {
+PRESETS = {
     "Low-income student": "I am a university student struggling to pay tuition, rent, and basic living costs while studying full-time.",
     "Senior citizen pension": "I am a retired senior with limited savings and I want to know what pension or support programs I may be eligible for.",
     "Small farmer": "I farm a small plot and need help understanding income support, grants, and application steps for my rural family.",
 }
 
-if "situation_text" not in st.session_state:
-    st.session_state.situation_text = ""
-
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
+for k, v in {"situation_text": "", "submitted": False}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 st.title("Haqdaar")
 st.write("### Know your rights. Get what you're due.")
@@ -22,25 +20,23 @@ st.info(
     "Haqdaar provides general, cited information — it is not legal or financial advice. Always verify with the relevant official body."
 )
 
-st.session_state.situation_text = st.text_area(
-    "Describe your situation, or paste an official document or notice…",
-    value=st.session_state.situation_text,
-    height=220,
-    key="situation_text",
-)
 
-st.write("**Example presets:**")
-cols = st.columns(3)
-for idx, (label, text) in enumerate(PRESET_SCENARIOS.items()):
-    if cols[idx].button(label):
-        st.session_state.situation_text = text
-        st.session_state.submitted = False
-        st.rerun()
+def set_situation(text):
+    st.session_state.situation_text = text
+
+cols = st.columns(len(PRESETS))
+for col, (label, text) in zip(cols, PRESETS.items()):
+    col.button(label, on_click=set_situation, args=(text,))
+
+st.text_area(
+    "Describe your situation, or paste an official document or notice…",
+    key="situation_text",
+    height=220,
+)
 
 if st.button("Find what I'm entitled to"):
     if st.session_state.situation_text.strip():
         st.session_state.submitted = True
-        st.rerun()
 
 if st.session_state.submitted and st.session_state.situation_text.strip():
     st.markdown("---")
