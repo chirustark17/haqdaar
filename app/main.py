@@ -8,11 +8,11 @@ PRESET_SCENARIOS = {
     "Small farmer": "I farm a small plot and need help understanding income support, grants, and application steps for my rural family.",
 }
 
-if "user_input" not in st.session_state:
-    st.session_state.user_input = ""
+if "situation_text" not in st.session_state:
+    st.session_state.situation_text = ""
 
-if "show_results" not in st.session_state:
-    st.session_state.show_results = False
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
 
 st.title("Haqdaar")
 st.write("### Know your rights. Get what you're due.")
@@ -22,25 +22,27 @@ st.info(
     "Haqdaar provides general, cited information — it is not legal or financial advice. Always verify with the relevant official body."
 )
 
-with st.form(key="input_form"):
-    st.session_state.user_input = st.text_area(
-        "Describe your situation, or paste an official document or notice…",
-        value=st.session_state.user_input,
-        height=220,
-        key="description_area",
-    )
+st.session_state.situation_text = st.text_area(
+    "Describe your situation, or paste an official document or notice…",
+    value=st.session_state.situation_text,
+    height=220,
+    key="situation_text",
+)
 
-    cols = st.columns(3)
-    for idx, (label, text) in enumerate(PRESET_SCENARIOS.items()):
-        if cols[idx].button(label):
-            st.session_state.user_input = text
-            st.session_state.show_results = False
+st.write("**Example presets:**")
+cols = st.columns(3)
+for idx, (label, text) in enumerate(PRESET_SCENARIOS.items()):
+    if cols[idx].button(label):
+        st.session_state.situation_text = text
+        st.session_state.submitted = False
+        st.rerun()
 
-    submit = st.form_submit_button("Find what I'm entitled to")
-    if submit:
-        st.session_state.show_results = True
+if st.button("Find what I'm entitled to"):
+    if st.session_state.situation_text.strip():
+        st.session_state.submitted = True
+        st.rerun()
 
-if st.session_state.show_results and st.session_state.user_input.strip():
+if st.session_state.submitted and st.session_state.situation_text.strip():
     st.markdown("---")
     st.subheader("Explanation")
     st.write("Coming next phase: grounded, cited results.")
