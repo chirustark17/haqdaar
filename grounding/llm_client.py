@@ -33,6 +33,23 @@ def ask(prompt: str) -> str:
     return response.choices[0].message.content
 
 
+def chat(system: str, user: str) -> str:
+    """Send a system+user message pair to the deployed model and return the reply."""
+    deployment = os.getenv("AZURE_AI_MODEL_DEPLOYMENT")
+    if not deployment:
+        raise RuntimeError("Missing AZURE_AI_MODEL_DEPLOYMENT in .env.")
+    client = get_client()
+    response = client.chat.completions.create(
+        model=deployment,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.2,
+    )
+    return response.choices[0].message.content
+
+
 if __name__ == "__main__":
     print("--- Haqdaar connectivity check ---")
     print("base_url  :", os.getenv("AZURE_OPENAI_ENDPOINT", "(NOT SET)"))
