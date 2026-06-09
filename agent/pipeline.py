@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from grounding.knowledge_base import retrieve
+from grounding.foundry_iq import retrieve
 from grounding.llm_client import chat
 
 DISCLAIMER = (

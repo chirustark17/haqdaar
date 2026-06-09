@@ -214,8 +214,13 @@ def _foundry_retrieve(query: str, top_k: int = 5):
     for ref in (getattr(resp, "references", None) or [])[:top_k]:
         sd = getattr(ref, "source_data", None) or {}
         get = sd.get if hasattr(sd, "get") else (lambda *_: None)
+        source = get("source")
+        if not source:
+            doc_key = getattr(ref, "doc_key", None) or ""
+            stem = re.sub(r"-\d+$", "", doc_key)
+            source = f"{stem}.md" if stem else "Foundry IQ"
         results.append({
-            "source": get("source") or getattr(ref, "doc_key", None) or "Foundry IQ",
+            "source": source,
             "title": get("title") or "",
             "text": get("content") or "",
             "score": getattr(ref, "reranker_score", None),
