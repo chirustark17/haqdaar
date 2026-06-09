@@ -1,14 +1,26 @@
-"""Haqdaar - Streamlit UI (Phase 4c)."""
+"""Haqdaar - Streamlit UI (Fluent-styled)."""
 
 import sys
+import html
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 from agent.pipeline import run_pipeline
+from ui.styles import (
+    inject_fluent_styles,
+    header_html,
+    message_bar_html,
+    summary_html,
+    rights_html,
+    steps_html,
+    sources_html,
+    trace_html,
+)
 
 st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="centered")
+inject_fluent_styles()
 
 PRESETS = {
     "Low-income student": "I am a final-year student from a low-income family and I'm struggling to pay my tuition and need support to continue my studies.",
@@ -26,18 +38,40 @@ def set_situation(text: str) -> None:
     st.session_state.result = None
 
 
-st.title("Haqdaar")
-st.subheader("Know your rights. Get what you're due.")
-st.caption(
-    "A demo civic-rights assistant that explains your situation, finds the benefits you "
-    "may qualify for, plans your next steps, and drafts a letter - every claim cited to its source."
-)
-st.info(
-    "Haqdaar provides general, cited information based on a synthetic demo knowledge base - "
-    "it is not legal or financial advice. Always verify with the relevant official body."
+with st.sidebar:
+    st.markdown("### About Haqdaar")
+    st.markdown(
+        "A grounded civic-rights co-pilot. Describe a situation (or paste an official notice) "
+        "and Haqdaar explains it, finds benefits you may qualify for, plans your next steps, and "
+        "drafts a ready-to-send letter — every claim cited to its source."
+    )
+    st.markdown("#### How it works")
+    st.markdown(
+        "1. **Understand** your situation\n"
+        "2. **Classify** the domain\n"
+        "3. **Ground** in cited rules (Foundry IQ)\n"
+        "4. **Reason** about eligibility\n"
+        "5. **Plan** the steps\n"
+        "6. **Act** — draft the letter\n"
+        "7. **Safeguard** — refuse if ungrounded"
+    )
+    st.markdown(
+        message_bar_html("Grounded by Microsoft Foundry IQ · agentic retrieval with citations.", "info"),
+        unsafe_allow_html=True,
+    )
+
+st.markdown(header_html(), unsafe_allow_html=True)
+
+st.markdown(
+    message_bar_html(
+        "Haqdaar provides general, cited information from a synthetic demo knowledge base — it is "
+        "not legal or financial advice. Always verify with the relevant official body.",
+        "warning",
+    ),
+    unsafe_allow_html=True,
 )
 
-st.write("**Try an example:**")
+st.markdown("<div class='hq-section-label'>Try an example</div>", unsafe_allow_html=True)
 cols = st.columns(len(PRESETS))
 for col, (label, text) in zip(cols, PRESETS.items()):
     col.button(label, on_click=set_situation, args=(text,), use_container_width=True)
@@ -62,50 +96,52 @@ if st.button("Find what I'm entitled to", type="primary"):
 result = st.session_state.result
 if result:
     if "error" in result:
-        st.error("Something went wrong while analysing your situation. Please try again.")
+        st.markdown(
+            message_bar_html("Something went wrong while analysing your situation. Please try again.", "error"),
+            unsafe_allow_html=True,
+        )
         with st.expander("Technical detail"):
             st.code(result["error"])
     else:
-        st.divider()
+        st.markdown("<div class='hq-divider'></div>", unsafe_allow_html=True)
         if not result.get("grounded"):
-            st.warning(result.get("explanation", "No grounded information found."))
+            st.markdown(
+                message_bar_html(result.get("explanation", "No grounded information found."), "warning"),
+                unsafe_allow_html=True,
+            )
         else:
-            st.markdown("### Explanation")
-            st.write(result.get("explanation", ""))
+            st.markdown("<div class='hq-h2'>Explanation</div>", unsafe_allow_html=True)
+            st.markdown(summary_html(result.get("explanation", "")), unsafe_allow_html=True)
 
-            st.markdown("### Rights & benefits you may qualify for")
+            st.markdown("<div class='hq-h2'>Rights &amp; benefits you may qualify for</div>", unsafe_allow_html=True)
             rights = result.get("rights", [])
             if rights:
-                for r in rights:
-                    with st.container(border=True):
-                        st.markdown(f"**{r.get('name', 'Benefit')}**")
-                        if r.get("why_eligible"):
-                            st.write(r["why_eligible"])
-                        if r.get("citation"):
-                            st.caption(f"Source: {r['citation']}")
+                st.markdown(rights_html(rights), unsafe_allow_html=True)
             else:
-                st.write("No specific entitlements identified from the available sources.")
+                st.markdown(
+                    "<div class='hq-muted'>No specific entitlements identified from the available sources.</div>",
+                    unsafe_allow_html=True,
+                )
 
-            st.markdown("### Action plan")
+            st.markdown("<div class='hq-h2'>Action plan</div>", unsafe_allow_html=True)
             steps = result.get("action_plan", [])
             if steps:
-                for i, step in enumerate(steps, 1):
-                    st.markdown(f"{i}. {step}")
+                st.markdown(steps_html(steps), unsafe_allow_html=True)
             else:
-                st.write("No action steps available.")
+                st.markdown("<div class='hq-muted'>No action steps available.</div>", unsafe_allow_html=True)
 
-            st.markdown("### Drafted letter")
+            st.markdown("<div class='hq-h2'>Drafted letter</div>", unsafe_allow_html=True)
             letter = result.get("letter", "")
             if letter:
                 st.text_area("You can copy or download this letter:", value=letter, height=240)
                 st.download_button("Download letter", data=letter, file_name="haqdaar_letter.txt", mime="text/plain")
             else:
-                st.write("No letter drafted.")
+                st.markdown("<div class='hq-muted'>No letter drafted.</div>", unsafe_allow_html=True)
 
         if result.get("sources"):
-            st.caption("Grounded in sources: " + ", ".join(result["sources"]))
-        st.caption(result.get("disclaimer", ""))
+            st.markdown(sources_html(result["sources"]), unsafe_allow_html=True)
+        if result.get("disclaimer"):
+            st.markdown(f"<div class='hq-disclaimer'>{html.escape(result['disclaimer'])}</div>", unsafe_allow_html=True)
 
         with st.expander("Reasoning trace (how Haqdaar worked this out)"):
-            for line in result.get("trace", []):
-                st.text(line)
+            st.markdown(trace_html(result.get("trace", [])), unsafe_allow_html=True)
