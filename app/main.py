@@ -10,7 +10,8 @@ import streamlit as st
 from agent.pipeline import run_pipeline
 from ui.styles import (
     inject_fluent_styles,
-    header_html,
+    hero_html,
+    processing_html,
     message_bar_html,
     summary_html,
     rights_html,
@@ -19,7 +20,7 @@ from ui.styles import (
     trace_html,
 )
 
-st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="centered")
+st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="wide")
 inject_fluent_styles()
 
 PRESETS = {
@@ -35,6 +36,11 @@ for _k, _v in {"situation_text": "", "result": None}.items():
 
 def set_situation(text: str) -> None:
     st.session_state.situation_text = text
+    st.session_state.result = None
+
+
+def reset_all() -> None:
+    st.session_state.situation_text = ""
     st.session_state.result = None
 
 
@@ -55,12 +61,14 @@ with st.sidebar:
         "6. **Act** — draft the letter\n"
         "7. **Safeguard** — refuse if ungrounded"
     )
+    st.button("Start over", on_click=reset_all, use_container_width=True)
     st.markdown(
         message_bar_html("Grounded by Microsoft Foundry IQ · agentic retrieval with citations.", "info"),
         unsafe_allow_html=True,
     )
+    st.caption("Built with Azure AI Foundry · Foundry IQ · GitHub Copilot · Streamlit")
 
-st.markdown(header_html(), unsafe_allow_html=True)
+st.markdown(hero_html(), unsafe_allow_html=True)
 
 st.markdown(
     message_bar_html(
@@ -87,11 +95,14 @@ if st.button("Find what I'm entitled to", type="primary"):
     if not situation:
         st.warning("Please describe your situation first.")
     else:
-        with st.spinner("Analysing your situation and checking the knowledge base…"):
-            try:
-                st.session_state.result = run_pipeline(situation)
-            except Exception as e:
-                st.session_state.result = {"error": str(e)}
+        progress = st.empty()
+        progress.markdown(processing_html(), unsafe_allow_html=True)
+        try:
+            st.session_state.result = run_pipeline(situation)
+        except Exception as e:
+            st.session_state.result = {"error": str(e)}
+        finally:
+            progress.empty()
 
 result = st.session_state.result
 if result:

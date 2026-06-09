@@ -14,11 +14,21 @@ _CSS = """
   --hq-shadow-hover:0 3.2px 7.2px rgba(0,0,0,.13),0 .6px 1.8px rgba(0,0,0,.09);
   --hq-font:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
 }
-html,body,.stApp,[class^="st-"],[class*=" st-"],button,input,textarea,select,p,div,span,h1,h2,h3,h4,h5{font-family:var(--hq-font)!important;}
+/* Font: text elements only — never icon spans (prevents icon-ligature leak) */
+.stApp,
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+h1,h2,h3,h4,h5,h6,
+.stButton button, .stDownloadButton button,
+.stTextArea textarea, .stTextInput input, textarea, input, select,
+[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *,
+[class^="hq-"], [class*=" hq-"]{font-family:var(--hq-font)!important;}
+
 .stApp{background:var(--hq-bg);}
+.block-container{max-width:880px;padding-top:2.4rem;padding-bottom:3rem;margin:0 auto;}
 #MainMenu,footer{visibility:hidden;}
 [data-testid="stToolbar"],[data-testid="stDecoration"]{display:none;}
 [data-testid="stHeader"]{background:transparent;}
+
 .stButton>button{border-radius:6px!important;font-weight:600!important;border:1px solid var(--hq-line)!important;color:var(--hq-ink)!important;background:var(--hq-surface)!important;box-shadow:var(--hq-shadow)!important;transition:all .15s ease!important;}
 .stButton>button:hover{box-shadow:var(--hq-shadow-hover)!important;transform:translateY(-1px);border-color:#C8C6C4!important;}
 .stButton>button[kind="primary"]{background:var(--hq-blue)!important;border-color:var(--hq-blue)!important;color:#fff!important;}
@@ -27,14 +37,36 @@ html,body,.stApp,[class^="st-"],[class*=" st-"],button,input,textarea,select,p,d
 .stDownloadButton>button:hover{background:#EFF6FC!important;}
 .stTextArea textarea,.stTextInput input{border-radius:6px!important;border:1px solid var(--hq-line)!important;color:var(--hq-ink)!important;}
 .stTextArea textarea:focus,.stTextInput input:focus{border-color:var(--hq-blue)!important;box-shadow:0 0 0 1px var(--hq-blue)!important;}
-.hq-header{background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:var(--hq-radius);box-shadow:var(--hq-shadow);padding:18px 22px;margin:0 0 14px;}
-.hq-header-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-.hq-logo{font-size:30px;line-height:1;}
-.hq-title{font-size:1.7rem;font-weight:700;color:var(--hq-ink);letter-spacing:-.01em;line-height:1.1;}
-.hq-tagline{font-size:.98rem;color:var(--hq-muted);margin-top:2px;}
-.hq-spacer{flex:1 1 auto;}
-.hq-badge{display:inline-flex;align-items:center;gap:7px;background:#EFF6FC;color:#005A9E;border:1px solid #C7E0F4;border-radius:16px;padding:5px 12px;font-size:.79rem;font-weight:600;white-space:nowrap;}
-.hq-badge::before{content:"";width:8px;height:8px;border-radius:50%;background:#0078D4;display:inline-block;}
+
+/* Foundry-style hero */
+.hq-hero{position:relative;overflow:hidden;border-radius:12px;padding:26px 28px;margin:0 0 16px;color:#fff;background:linear-gradient(125deg,#0a2a66 0%,#0078D4 48%,#5b2e9e 100%);box-shadow:0 6px 20px rgba(11,42,102,.28);}
+.hq-hero::after{content:"";position:absolute;right:-60px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.18),rgba(255,255,255,0) 70%);}
+.hq-hero-kicker{font-size:.74rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.82);margin-bottom:8px;position:relative;}
+.hq-hero-title{font-size:2.1rem;font-weight:700;letter-spacing:-.02em;line-height:1.05;margin:0;position:relative;}
+.hq-hero-tagline{font-size:1.05rem;font-weight:600;color:rgba(255,255,255,.96);margin:4px 0 0;position:relative;}
+.hq-hero-sub{font-size:.92rem;color:rgba(255,255,255,.86);line-height:1.5;margin:10px 0 0;max-width:64ch;position:relative;}
+.hq-hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;position:relative;}
+.hq-hero-chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.30);color:#fff;border-radius:16px;padding:5px 12px;font-size:.78rem;font-weight:600;}
+.hq-hero-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:#7ee0c0;display:inline-block;}
+
+/* Processing animation */
+.hq-proc{background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:var(--hq-radius);box-shadow:var(--hq-shadow);padding:18px 20px;margin:8px 0 4px;}
+.hq-proc-head{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--hq-ink);font-size:1rem;margin-bottom:14px;}
+.hq-proc-spin{width:16px;height:16px;border:2.5px solid #C7E0F4;border-top-color:#0078D4;border-radius:50%;animation:hqspin .8s linear infinite;}
+@keyframes hqspin{to{transform:rotate(360deg);}}
+.hq-proc-steps{display:flex;flex-direction:column;gap:8px;}
+.hq-proc-step{display:flex;align-items:center;gap:11px;font-size:.92rem;color:var(--hq-muted);border-left:3px solid transparent;padding-left:10px;border-radius:2px;animation:hqstep 4.9s ease-in-out infinite;}
+.hq-proc-step .hq-proc-label{font-weight:600;color:var(--hq-ink2);}
+.hq-proc-dot{flex:0 0 24px;height:24px;width:24px;border-radius:50%;background:#EFF6FC;border:2px solid #C7E0F4;color:#0078D4;font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
+@keyframes hqstep{0%,100%{opacity:.5;border-left-color:transparent;background:transparent;}45%,65%{opacity:1;border-left-color:#0078D4;background:#F3F9FD;}}
+.hq-proc-step:nth-child(1){animation-delay:0s;}
+.hq-proc-step:nth-child(2){animation-delay:.7s;}
+.hq-proc-step:nth-child(3){animation-delay:1.4s;}
+.hq-proc-step:nth-child(4){animation-delay:2.1s;}
+.hq-proc-step:nth-child(5){animation-delay:2.8s;}
+.hq-proc-step:nth-child(6){animation-delay:3.5s;}
+.hq-proc-step:nth-child(7){animation-delay:4.2s;}
+
 .hq-section-label{font-size:.82rem;font-weight:600;color:var(--hq-muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px;}
 .hq-h2{font-size:1.22rem;font-weight:700;color:var(--hq-ink);margin:20px 0 8px;letter-spacing:-.01em;}
 .hq-divider{height:1px;background:var(--hq-line);margin:18px 0;}
@@ -43,6 +75,8 @@ html,body,.stApp,[class^="st-"],[class*=" st-"],button,input,textarea,select,p,d
 .hq-msg-info{background:#EFF6FC;border-color:#C7E0F4;border-left-color:#0078D4;color:#10456b;}
 .hq-msg-warning{background:#FFF4CE;border-color:#F2E0A0;border-left-color:#D9A400;color:#5e4905;}
 .hq-msg-error{background:#FDE7E9;border-color:#F1B9BE;border-left-color:#D13438;color:#7a1d24;}
+.hq-summary,.hq-card{animation:hqfade .35s ease both;}
+@keyframes hqfade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
 .hq-summary{background:var(--hq-surface);border:1px solid var(--hq-line);border-left:4px solid var(--hq-blue);border-radius:var(--hq-radius);box-shadow:var(--hq-shadow);padding:14px 16px;color:var(--hq-ink2);font-size:.96rem;line-height:1.55;margin-bottom:6px;}
 .hq-card{background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:var(--hq-radius);box-shadow:var(--hq-shadow);padding:14px 16px;margin-bottom:12px;transition:box-shadow .15s ease,transform .15s ease;}
 .hq-card:hover{box-shadow:var(--hq-shadow-hover);transform:translateY(-1px);}
@@ -70,15 +104,41 @@ def inject_fluent_styles() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
 
-def header_html() -> str:
+def hero_html() -> str:
     return (
-        "<div class='hq-header'><div class='hq-header-row'>"
-        "<div class='hq-logo'>🪪</div>"
-        "<div><div class='hq-title'>Haqdaar</div>"
-        "<div class='hq-tagline'>Know your rights. Get what you&#39;re due.</div></div>"
-        "<div class='hq-spacer'></div>"
-        "<span class='hq-badge'>Grounded by Foundry IQ</span>"
+        "<div class='hq-hero'>"
+        "<div class='hq-hero-kicker'>Microsoft Agents League · Creative Apps</div>"
+        "<div class='hq-hero-title'>Haqdaar</div>"
+        "<div class='hq-hero-tagline'>Know your rights. Get what you&#39;re due.</div>"
+        "<div class='hq-hero-sub'>A grounded civic-rights co-pilot: describe your situation or paste an official notice, and Haqdaar explains it, finds the benefits you may qualify for, plans your next steps, and drafts a ready-to-send letter — every claim cited.</div>"
+        "<div class='hq-hero-chips'>"
+        "<span class='hq-hero-chip'>Grounded by Foundry IQ</span>"
+        "<span class='hq-hero-chip'>Cited answers</span>"
+        "<span class='hq-hero-chip'>Action plan &amp; letter</span>"
         "</div></div>"
+    )
+
+
+def processing_html() -> str:
+    steps = [
+        ("Understand", "Reading your situation"),
+        ("Classify", "Identifying the domain"),
+        ("Ground", "Retrieving cited rules via Foundry IQ"),
+        ("Reason", "Checking your eligibility"),
+        ("Plan", "Building your action plan"),
+        ("Act", "Drafting your letter"),
+        ("Safeguard", "Verifying every claim is cited"),
+    ]
+    rows = []
+    for i, (name, desc) in enumerate(steps, 1):
+        rows.append(
+            f"<div class='hq-proc-step'><div class='hq-proc-dot'>{i}</div>"
+            f"<div><span class='hq-proc-label'>{name}</span> — {html.escape(desc)}</div></div>"
+        )
+    return (
+        "<div class='hq-proc'><div class='hq-proc-head'>"
+        "<div class='hq-proc-spin'></div>Haqdaar is reasoning through your case…</div>"
+        f"<div class='hq-proc-steps'>{''.join(rows)}</div></div>"
     )
 
 
