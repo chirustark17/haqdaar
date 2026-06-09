@@ -182,9 +182,89 @@ def build_all() -> None:
     create_knowledge_base()
 
 
-if __name__ == "__main__":
+def _foundry_retrieve(query: str, top_k: int = 5):
+    """Query the Foundry IQ knowledge base; return grounded chunks as
+    {source, title, text, score, matched}. Raises on failure (caller handles fallback)."""
+    from azure.search.documents.knowledgebases import KnowledgeBaseRetrievalClient
+    from azure.search.documents.knowledgebases.models import (
+        KnowledgeBaseRetrievalRequest,
+        KnowledgeRetrievalSemanticIntent,
+        SearchIndexKnowledgeSourceParams,
+    )
+
+    client = KnowledgeBaseRetrievalClient(
+        endpoint=SEARCH_ENDPOINT,
+        credential=AzureKeyCredential(SEARCH_ADMIN_KEY),
+        knowledge_base_name=KB_NAME,
+    )
+    request = KnowledgeBaseRetrievalRequest(
+        intents=[KnowledgeRetrievalSemanticIntent(search=query)],
+        knowledge_source_params=[
+            SearchIndexKnowledgeSourceParams(
+                knowledge_source_name=KS_NAME,
+                include_references=True,
+                include_reference_source_data=True,
+            )
+        ],
+        include_activity=False,
+    )
+    resp = client.retrieve(request)
+
+    results = []
+    for ref in (getattr(resp, "references", None) or [])[:top_k]:
+        sd = getattr(ref, "source_data", None) or {}
+        get = sd.get if hasattr(sd, "get") else (lambda *_: None)
+        results.append({
+            "source": get("source") or getattr(ref, "doc_key", None) or "Foundry IQ",
+            "title": get("title") or "",
+            "text": get("content") or "",
+            "score": getattr(ref, "reranker_score", None),
+            "matched": True,
+        })
+    return results
+
+
+def retrieve(query: str, top_k: int = 5):
+    """Grounded retrieval via Foundry IQ, with automatic fallback to the local
+    retriever so the app never breaks."""
     try:
-        build_all()
+        results = _foundry_retrieve(query, top_k)
+        if results:
+            return results
+        print("[foundry_iq] No Foundry IQ results; falling back to local retriever.")
     except Exception as exc:
-        print("Build FAILED:", repr(exc))
+        print(f"[foundry_iq] Foundry IQ retrieve failed ({exc!r}); falling back to local retriever.")
+    from grounding.knowledge_base import retrieve as local_retrieve
+    return local_retrieve(query, top_k)
+
+
+def test_retrieve() -> None:
+    """Standalone smoke test against the knowledge base (3 demo-style queries)."""
+    queries = [
+        "I am a final-year student needing financial help for my fees",
+        "My elderly mother needs monthly income support",
+        "I run a small farm and lost income this season",
+    ]
+    for q in queries:
+        print("=" * 60)
+        print("QUERY:", q)
+        results = retrieve(q, top_k=3)
+        if not results:
+            print("  (no results)")
+        for r in results:
+            print(f"  score={r['score']} source={r['source']} title={r['title']!r}")
+            print(f"     text[:160]={r['text'][:160]!r}")
+
+
+if __name__ == "__main__":
+    import sys
+
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "build"
+    try:
+        if cmd == "test":
+            test_retrieve()
+        else:
+            build_all()
+    except Exception as exc:
+        print(f"{cmd} FAILED:", repr(exc))
         raise
