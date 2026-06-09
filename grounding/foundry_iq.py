@@ -33,6 +33,8 @@ SEARCH_ADMIN_KEY = os.environ.get("AZURE_SEARCH_ADMIN_KEY")
 INDEX_NAME = "haqdaar-index"
 SEMANTIC_CONFIG = "haqdaar-semantic"
 KNOWLEDGE_DIR = "knowledge"
+KS_NAME = "haqdaar-ks"
+KB_NAME = "haqdaar-kb"
 
 
 def get_index_client() -> SearchIndexClient:
@@ -136,9 +138,53 @@ def build_search_layer() -> None:
     push_documents()
 
 
+def create_knowledge_source() -> None:
+    """Wrap haqdaar-index as a SearchIndexKnowledgeSource (keyword + semantic)."""
+    from azure.search.documents.indexes.models import (
+        SearchIndexKnowledgeSource,
+        SearchIndexKnowledgeSourceParameters,
+    )
+
+    ks = SearchIndexKnowledgeSource(
+        name=KS_NAME,
+        description="Synthetic civic-rights schemes + appeal guide for Haqdaar.",
+        search_index_parameters=SearchIndexKnowledgeSourceParameters(
+            search_index_name=INDEX_NAME,
+            semantic_configuration_name=SEMANTIC_CONFIG,
+            search_fields=["title", "content"],
+            source_data_fields=["title", "content", "source"],
+        ),
+    )
+    get_index_client().create_or_update_knowledge_source(ks)
+    print(f"Knowledge source '{KS_NAME}' created/updated (index '{INDEX_NAME}').")
+
+
+def create_knowledge_base() -> None:
+    """Create a KnowledgeBase over the knowledge source. No LLM model -> extractive
+    retrieval; the Haqdaar pipeline does its own reasoning over grounded chunks."""
+    from azure.search.documents.indexes.models import (
+        KnowledgeBase,
+        KnowledgeSourceReference,
+    )
+
+    kb = KnowledgeBase(
+        name=KB_NAME,
+        knowledge_sources=[KnowledgeSourceReference(name=KS_NAME)],
+    )
+    get_index_client().create_or_update_knowledge_base(kb)
+    print(f"Knowledge base '{KB_NAME}' created/updated (source '{KS_NAME}').")
+
+
+def build_all() -> None:
+    build_index()
+    push_documents()
+    create_knowledge_source()
+    create_knowledge_base()
+
+
 if __name__ == "__main__":
     try:
-        build_search_layer()
+        build_all()
     except Exception as exc:
         print("Build FAILED:", repr(exc))
         raise
