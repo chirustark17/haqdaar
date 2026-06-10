@@ -189,3 +189,14 @@ def trace_html(lines) -> str:
         else:
             rows.append(f"<div class='hq-trace-row'><span class='hq-trace-detail'>{html.escape(line)}</span></div>")
     return f"<div class='hq-trace'>{''.join(rows)}</div>"
+
+
+def large_text_css() -> str:
+    return (
+        "<style>"
+        "html{font-size:17.5px;}"
+        ".hq-card-body,.hq-step-text,.hq-summary,.hq-msgbar{font-size:1.02rem!important;}"
+        ".hq-trace-detail{font-size:.98rem!important;}"
+        ".stTextArea textarea{font-size:1.05rem!important;}"
+        "</style>"
+    )

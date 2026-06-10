@@ -15,9 +15,9 @@ from ui.styles import (
     message_bar_html,
     summary_html,
     rights_html,
-    steps_html,
     sources_html,
     trace_html,
+    large_text_css,
 )
 
 st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="wide")
@@ -29,7 +29,7 @@ PRESETS = {
     "Small farmer": "I farm a small plot and need help with income support, grants, and application steps for my rural family.",
 }
 
-for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": ""}.items():
+for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0}.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -42,6 +42,8 @@ def set_situation(text: str) -> None:
 def reset_all() -> None:
     st.session_state.situation_text = ""
     st.session_state.result = None
+    st.session_state.doc_error = ""
+    st.session_state.doc_notice = ""
 
 
 MAX_DOC_CHARS = 6000
@@ -103,11 +105,16 @@ with st.sidebar:
         "7. **Safeguard** — refuse if ungrounded"
     )
     st.button("Start over", on_click=reset_all, use_container_width=True)
+    st.checkbox("Large text mode", key="large_text", help="Increase text size for easier reading")
     st.markdown(
         message_bar_html("Grounded by Microsoft Foundry IQ · agentic retrieval with citations.", "info"),
         unsafe_allow_html=True,
     )
     st.caption("Built with Azure AI Foundry · Foundry IQ · GitHub Copilot · Streamlit")
+    st.markdown("[View source on GitHub](https://github.com/chirustark17/haqdaar)")
+
+if st.session_state.get("large_text"):
+    st.markdown(large_text_css(), unsafe_allow_html=True)
 
 st.markdown(hero_html(), unsafe_allow_html=True)
 
@@ -160,9 +167,11 @@ if st.button("Find what I'm entitled to", type="primary"):
             st.session_state.result = {"error": str(e)}
         finally:
             progress.empty()
+        st.session_state.result_nonce += 1
 
 result = st.session_state.result
 if result:
+    nonce = st.session_state.result_nonce
     if "error" in result:
         st.markdown(
             message_bar_html("Something went wrong while analysing your situation. Please try again.", "error"),
@@ -194,15 +203,38 @@ if result:
             st.markdown("<div class='hq-h2'>Action plan</div>", unsafe_allow_html=True)
             steps = result.get("action_plan", [])
             if steps:
-                st.markdown(steps_html(steps), unsafe_allow_html=True)
+                st.caption("Tick off each step as you complete it:")
+                done = 0
+                for i, step in enumerate(steps, 1):
+                    if st.checkbox(f"{i}. {step}", key=f"plan_{nonce}_{i}"):
+                        done += 1
+                st.progress(done / len(steps))
+                if done == len(steps):
+                    st.markdown(
+                        message_bar_html("All steps done — you're ready to send your letter below!", "info"),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.caption(f"{done} of {len(steps)} steps completed")
             else:
                 st.markdown("<div class='hq-muted'>No action steps available.</div>", unsafe_allow_html=True)
 
             st.markdown("<div class='hq-h2'>Drafted letter</div>", unsafe_allow_html=True)
             letter = result.get("letter", "")
             if letter:
-                st.text_area("You can copy or download this letter:", value=letter, height=240)
-                st.download_button("Download letter", data=letter, file_name="haqdaar_letter.txt", mime="text/plain")
+                st.caption("Personalise it (optional) — your details replace the placeholders live:")
+                pcol1, pcol2 = st.columns(2)
+                with pcol1:
+                    user_name = st.text_input("Your name", key=f"name_{nonce}")
+                with pcol2:
+                    user_contact = st.text_input("Your contact info", key=f"contact_{nonce}")
+                final_letter = letter
+                if user_name.strip():
+                    final_letter = final_letter.replace("[Your Name]", user_name.strip())
+                if user_contact.strip():
+                    final_letter = final_letter.replace("[Your Contact Information]", user_contact.strip())
+                st.text_area("You can copy or download this letter:", value=final_letter, height=240)
+                st.download_button("Download letter", data=final_letter, file_name="haqdaar_letter.txt", mime="text/plain")
             else:
                 st.markdown("<div class='hq-muted'>No letter drafted.</div>", unsafe_allow_html=True)
 
