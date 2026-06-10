@@ -96,6 +96,18 @@ h1,h2,h3,h4,h5,h6,
 .hq-trace-row:last-child{border-bottom:none;}
 .hq-trace-step{flex:0 0 auto;font-weight:600;color:var(--hq-blue);font-size:.84rem;min-width:96px;}
 .hq-trace-detail{color:var(--hq-ink2);font-size:.88rem;line-height:1.45;}
+
+/* Keep the sidebar reopen control visible (header chrome is hidden) */
+[data-testid="stSidebarCollapsedControl"],[data-testid="collapsedControl"]{display:flex!important;visibility:visible!important;opacity:1!important;z-index:999990!important;}
+.hq-feat-row{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 16px;}
+.hq-feat{flex:1 1 220px;background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:var(--hq-radius);box-shadow:var(--hq-shadow);padding:14px 16px;transition:box-shadow .15s ease,transform .15s ease;}
+.hq-feat:hover{box-shadow:var(--hq-shadow-hover);transform:translateY(-1px);}
+.hq-feat-num{height:26px;width:26px;border-radius:50%;background:#EFF6FC;border:2px solid #C7E0F4;color:#0078D4;font-weight:700;font-size:.82rem;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+.hq-feat-title{font-weight:700;font-size:.97rem;color:var(--hq-ink);margin:0 0 4px;}
+.hq-feat-body{color:var(--hq-muted);font-size:.86rem;line-height:1.45;}
+.hq-glance{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;}
+.hq-glance-chip{display:inline-flex;align-items:center;gap:7px;background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:16px;padding:6px 13px;font-size:.84rem;font-weight:600;color:var(--hq-ink2);box-shadow:var(--hq-shadow);}
+.hq-footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--hq-line);text-align:center;font-size:.78rem;color:var(--hq-muted);line-height:1.5;}
 </style>
 """
 
@@ -199,4 +211,37 @@ def large_text_css() -> str:
         ".hq-trace-detail{font-size:.98rem!important;}"
         ".stTextArea textarea{font-size:1.05rem!important;}"
         "</style>"
+    )
+
+
+def feature_cards_html() -> str:
+    cards = [
+        ("1", "Describe or upload", "Type your situation in your own words - or upload an official letter or notice (PDF/TXT) and Haqdaar will decode it."),
+        ("2", "Discover what you're owed", "Foundry IQ retrieves the exact applicable rules. Every claim is cited to its source - no guesses."),
+        ("3", "Act with confidence", "Get a plain-language explanation, a step-by-step plan, and a ready-to-send letter personalised to you."),
+    ]
+    body = "".join(
+        f"<div class='hq-feat'><div class='hq-feat-num'>{n}</div>"
+        f"<div class='hq-feat-title'>{t}</div><div class='hq-feat-body'>{d}</div></div>"
+        for n, t, d in cards
+    )
+    return f"<div class='hq-feat-row'>{body}</div>"
+
+
+def glance_html(n_rights: int, n_steps: int, n_sources: int, language: str) -> str:
+    chips = [
+        f"<span class='hq-glance-chip'>🎯 {n_rights} benefit{'s' if n_rights != 1 else ''} found</span>",
+        f"<span class='hq-glance-chip'>🧭 {n_steps} action step{'s' if n_steps != 1 else ''}</span>",
+        f"<span class='hq-glance-chip'>📚 {n_sources} cited source{'s' if n_sources != 1 else ''}</span>",
+    ]
+    if language != "English":
+        chips.append(f"<span class='hq-glance-chip'>🌐 {html.escape(language)}</span>")
+    return f"<div class='hq-glance'>{''.join(chips)}</div>"
+
+
+def footer_html() -> str:
+    return (
+        "<div class='hq-footer'>Haqdaar · Microsoft Agents League 2026 - Creative Apps track · "
+        "Grounded by Foundry IQ on Azure AI Search · Built with GitHub Copilot &amp; VS Code<br>"
+        "Synthetic demo knowledge base - informational only, not legal or financial advice.</div>"
     )

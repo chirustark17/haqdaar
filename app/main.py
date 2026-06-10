@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 from agent.pipeline import run_pipeline
+from agent.i18n import LANGUAGES, to_english, translate_result
 from ui.styles import (
     inject_fluent_styles,
     hero_html,
@@ -18,6 +19,9 @@ from ui.styles import (
     sources_html,
     trace_html,
     large_text_css,
+    feature_cards_html,
+    glance_html,
+    footer_html,
 )
 
 st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="wide")
@@ -29,7 +33,7 @@ PRESETS = {
     "Small farmer": "I farm a small plot and need help with income support, grants, and application steps for my rural family.",
 }
 
-for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0}.items():
+for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": ""}.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -127,6 +131,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+if not st.session_state.result:
+    st.markdown(feature_cards_html(), unsafe_allow_html=True)
+
+st.selectbox("Response language", list(LANGUAGES.keys()), key="response_language")
+
 tab_describe, tab_upload = st.tabs(["✍️ Describe your situation", "📄 Upload a document"])
 
 with tab_describe:
@@ -162,7 +171,17 @@ if st.button("Find what I'm entitled to", type="primary"):
         progress = st.empty()
         progress.markdown(processing_html(), unsafe_allow_html=True)
         try:
-            st.session_state.result = run_pipeline(situation)
+            lang = LANGUAGES.get(st.session_state.get("response_language", "English"), "English")
+            pipeline_input = to_english(situation, lang)
+            result_data = run_pipeline(pipeline_input)
+            translated = False
+            if lang != "English" and isinstance(result_data, dict) and "error" not in result_data:
+                result_data, translated = translate_result(result_data, lang)
+            st.session_state.lang_notice = (
+                "" if (lang == "English" or translated)
+                else "Translation unavailable - showing results in English."
+            )
+            st.session_state.result = result_data
         except Exception as e:
             st.session_state.result = {"error": str(e)}
         finally:
@@ -187,6 +206,17 @@ if result:
                 unsafe_allow_html=True,
             )
         else:
+            st.markdown(
+                glance_html(
+                    len(result.get("rights", [])),
+                    len(result.get("action_plan", [])),
+                    len(result.get("sources", [])),
+                    str(st.session_state.get("response_language", "English")),
+                ),
+                unsafe_allow_html=True,
+            )
+            if st.session_state.lang_notice:
+                st.markdown(message_bar_html(st.session_state.lang_notice, "warning"), unsafe_allow_html=True)
             st.markdown("<div class='hq-h2'>Explanation</div>", unsafe_allow_html=True)
             st.markdown(summary_html(result.get("explanation", "")), unsafe_allow_html=True)
 
@@ -245,3 +275,5 @@ if result:
 
         with st.expander("Reasoning trace (how Haqdaar worked this out)"):
             st.markdown(trace_html(result.get("trace", [])), unsafe_allow_html=True)
+
+st.markdown(footer_html(), unsafe_allow_html=True)
