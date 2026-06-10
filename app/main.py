@@ -29,7 +29,7 @@ PRESETS = {
     "Small farmer": "I farm a small plot and need help with income support, grants, and application steps for my rural family.",
 }
 
-for _k, _v in {"situation_text": "", "result": None}.items():
+for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": ""}.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -42,6 +42,47 @@ def set_situation(text: str) -> None:
 def reset_all() -> None:
     st.session_state.situation_text = ""
     st.session_state.result = None
+
+
+MAX_DOC_CHARS = 6000
+
+
+def use_uploaded_document() -> None:
+    """Extract text from the uploaded PDF/TXT and load it into the situation box."""
+    st.session_state.doc_error = ""
+    st.session_state.doc_notice = ""
+    f = st.session_state.get("uploaded_doc")
+    if f is None:
+        st.session_state.doc_error = "Please choose a PDF or TXT file first."
+        return
+    try:
+        name = f.name.lower()
+        if name.endswith(".pdf"):
+            try:
+                from pypdf import PdfReader
+            except ImportError:
+                st.session_state.doc_error = "PDF support isn't installed (pypdf missing). Run: pip install pypdf"
+                return
+            reader = PdfReader(f)
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        else:
+            text = f.getvalue().decode("utf-8", errors="ignore")
+        text = text.strip()
+        if not text:
+            st.session_state.doc_error = (
+                "No readable text found in this document. Scanned/image-only PDFs aren't supported in this demo - "
+                "please paste the text instead."
+            )
+            return
+        if len(text) > MAX_DOC_CHARS:
+            text = text[:MAX_DOC_CHARS]
+            st.session_state.doc_notice = f"Long document - using the first {MAX_DOC_CHARS} characters."
+        st.session_state.situation_text = text
+        st.session_state.result = None
+        if not st.session_state.doc_notice:
+            st.session_state.doc_notice = "Document text loaded into the situation box - review it, then press \"Find what I'm entitled to\"."
+    except Exception as exc:
+        st.session_state.doc_error = f"Couldn't read that file: {exc}"
 
 
 with st.sidebar:
@@ -79,16 +120,32 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("<div class='hq-section-label'>Try an example</div>", unsafe_allow_html=True)
-cols = st.columns(len(PRESETS))
-for col, (label, text) in zip(cols, PRESETS.items()):
-    col.button(label, on_click=set_situation, args=(text,), use_container_width=True)
+tab_describe, tab_upload = st.tabs(["✍️ Describe your situation", "📄 Upload a document"])
 
-st.text_area(
-    "Describe your situation, or paste an official document or notice…",
-    key="situation_text",
-    height=160,
-)
+with tab_describe:
+    st.markdown("<div class='hq-section-label'>Try an example</div>", unsafe_allow_html=True)
+    cols = st.columns(len(PRESETS))
+    for col, (label, text) in zip(cols, PRESETS.items()):
+        col.button(label, on_click=set_situation, args=(text,), use_container_width=True)
+
+    st.text_area(
+        "Describe your situation, or paste an official document or notice…",
+        key="situation_text",
+        height=160,
+    )
+
+with tab_upload:
+    st.file_uploader(
+        "Upload an official letter or notice (PDF or TXT - text-based, not scanned images)",
+        type=["pdf", "txt"],
+        key="uploaded_doc",
+    )
+    st.button("Use this document", on_click=use_uploaded_document)
+    if st.session_state.doc_error:
+        st.markdown(message_bar_html(st.session_state.doc_error, "error"), unsafe_allow_html=True)
+    elif st.session_state.doc_notice:
+        st.markdown(message_bar_html(st.session_state.doc_notice, "info"), unsafe_allow_html=True)
+    st.caption("The extracted text lands in the Describe tab, where you can review or edit it before analysing.")
 
 if st.button("Find what I'm entitled to", type="primary"):
     situation = st.session_state.situation_text.strip()
