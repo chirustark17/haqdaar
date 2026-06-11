@@ -269,13 +269,22 @@ def _render_grounded_understand_act(result, nonce):
     render_letter(result, nonce)
 
 
+def _render_grounded_reading_pane(result, nonce):
+    render_glance(result)
+    main, aside = st.columns([0.64, 0.36], gap="large")
+    with main:
+        render_explanation(result)
+        render_rights(result)
+        render_letter(result, nonce)
+    with aside:
+        render_action_plan(result, nonce)
+
+
 def _render_grounded_body(result, nonce, layout):
     if layout == "understand_act":
         _render_grounded_understand_act(result, nonce)
     elif layout == "reading_pane":
-        # Layout B is built in the next step; render classic for now.
-        st.caption("This layout is being built - showing the classic layout for now.")
-        _render_grounded_centered(result, nonce)
+        _render_grounded_reading_pane(result, nonce)
     else:
         _render_grounded_centered(result, nonce)
 
