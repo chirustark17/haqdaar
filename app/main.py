@@ -34,8 +34,8 @@ SHOW_LAYOUT_SWITCHER = True
 DEFAULT_RESULTS_LAYOUT = "centered"  # "centered" | "understand_act" | "reading_pane"
 LAYOUT_LABELS = {
     "Centered (classic)": "centered",
-    "A Â· Understand â†’ Act": "understand_act",
-    "B Â· Reading pane": "reading_pane",
+    "A · Understand → Act": "understand_act",
+    "B · Reading pane": "reading_pane",
 }
 
 PRESETS = {
@@ -162,7 +162,7 @@ def render_action_plan(result, nonce):
         st.progress(done / len(steps))
         if done == len(steps):
             st.markdown(
-                message_bar_html("All steps done â€” you're ready to send your letter below!", "info"),
+                message_bar_html("All steps done — you're ready to send your letter below!", "info"),
                 unsafe_allow_html=True,
             )
         else:
@@ -218,7 +218,7 @@ def render_letter(result, nonce):
         mailto = "mailto:?subject=" + urllib.parse.quote("My Haqdaar letter") + "&body=" + urllib.parse.quote(final_letter)
         read_src = final_letter.replace("\\", " ").replace("`", "'")
         lang_codes = {"English": "en", "Hindi": "hi", "Kannada": "kn", "Tamil": "ta"}
-        lang_full = {"à¤¹à¤¿à¤¨à¥à¤¦à¥€ (Hindi)": "Hindi", "à²•à²¨à³à²¨à²¡ (Kannada)": "Kannada", "à®¤à®®à®¿à®´à¯ (Tamil)": "Tamil"}.get(lang, "English")
+        lang_full = {"हिन्दी (Hindi)": "Hindi", "ಕನ್ನಡ (Kannada)": "Kannada", "தமிழ் (Tamil)": "Tamil"}.get(lang, "English")
         speak_code = lang_codes.get(lang_full, "en")
         import json as _json
         payload = _json.dumps(final_letter)
@@ -262,7 +262,7 @@ def _render_grounded_body(result, nonce, layout):
     # Layouts A (understand_act) and B (reading_pane) are built in the next steps;
     # render the classic centered body for now so the switch is safe to toggle.
     if layout in ("understand_act", "reading_pane"):
-        st.caption("This layout is being built â€” showing the classic layout for now.")
+        st.caption("This layout is being built — showing the classic layout for now.")
         _render_grounded_centered(result, nonce)
     else:
         _render_grounded_centered(result, nonce)
