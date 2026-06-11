@@ -29,13 +29,22 @@ from ui.styles import (
 st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="wide")
 inject_fluent_styles()
 
+# Reversible results-layout switch (A/B test). Set SHOW_LAYOUT_SWITCHER=False to hide for the final judged build.
+SHOW_LAYOUT_SWITCHER = True
+DEFAULT_RESULTS_LAYOUT = "centered"  # "centered" | "understand_act" | "reading_pane"
+LAYOUT_LABELS = {
+    "Centered (classic)": "centered",
+    "A Â· Understand â†’ Act": "understand_act",
+    "B Â· Reading pane": "reading_pane",
+}
+
 PRESETS = {
     "Low-income student": "I am a final-year student from a low-income family and I'm struggling to pay my tuition and need support to continue my studies.",
     "Senior citizen pension": "I am 67 years old, retired with no regular income, and I want to know what pension support I can get.",
     "Small farmer": "I farm a small plot and need help with income support, grants, and application steps for my rural family.",
 }
 
-for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": ""}.items():
+for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": "", "results_layout": "centered"}.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -93,6 +102,186 @@ def use_uploaded_document() -> None:
         st.session_state.doc_error = f"Couldn't read that file: {exc}"
 
 
+# ---------- results rendering (presentation only; behavior unchanged) ----------
+def _render_error(result):
+    st.markdown(
+        message_bar_html("Something went wrong while analysing your situation. Please try again.", "error"),
+        unsafe_allow_html=True,
+    )
+    with st.expander("Technical detail"):
+        st.code(result["error"])
+
+
+def _render_ungrounded(result):
+    st.markdown(
+        message_bar_html(result.get("explanation", "No grounded information found."), "warning"),
+        unsafe_allow_html=True,
+    )
+
+
+def render_glance(result):
+    st.markdown(
+        glance_html(
+            len(result.get("rights", [])),
+            len(result.get("action_plan", [])),
+            len(result.get("sources", [])),
+            str(st.session_state.get("response_language", "English")),
+        ),
+        unsafe_allow_html=True,
+    )
+    if st.session_state.lang_notice:
+        st.markdown(message_bar_html(st.session_state.lang_notice, "warning"), unsafe_allow_html=True)
+
+
+def render_explanation(result):
+    st.markdown("<div class='hq-h2'>Explanation</div>", unsafe_allow_html=True)
+    st.markdown(summary_html(result.get("explanation", "")), unsafe_allow_html=True)
+
+
+def render_rights(result):
+    st.markdown("<div class='hq-h2'>Rights &amp; benefits you may qualify for</div>", unsafe_allow_html=True)
+    rights = result.get("rights", [])
+    if rights:
+        st.markdown(rights_html(rights), unsafe_allow_html=True)
+    else:
+        st.markdown(
+            "<div class='hq-muted'>No specific entitlements identified from the available sources.</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def render_action_plan(result, nonce):
+    st.markdown("<div class='hq-h2'>Action plan</div>", unsafe_allow_html=True)
+    steps = result.get("action_plan", [])
+    if steps:
+        st.caption("Tick off each step as you complete it:")
+        done = 0
+        for i, step in enumerate(steps, 1):
+            if st.checkbox(f"{i}. {step}", key=f"plan_{nonce}_{i}"):
+                done += 1
+        st.progress(done / len(steps))
+        if done == len(steps):
+            st.markdown(
+                message_bar_html("All steps done â€” you're ready to send your letter below!", "info"),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption(f"{done} of {len(steps)} steps completed")
+    else:
+        st.markdown("<div class='hq-muted'>No action steps available.</div>", unsafe_allow_html=True)
+
+
+def render_letter(result, nonce):
+    st.markdown("<div class='hq-h2'>Drafted letter</div>", unsafe_allow_html=True)
+    letter = result.get("letter", "")
+    if letter:
+        st.caption("Personalise it (optional) - your details replace the placeholders live:")
+        pcol1, pcol2 = st.columns(2)
+        with pcol1:
+            user_name = st.text_input("Your name", key=f"name_{nonce}")
+        with pcol2:
+            user_contact = st.text_input("Your contact info", key=f"contact_{nonce}")
+        final_letter = letter
+        if user_name.strip():
+            final_letter = final_letter.replace("[Your Name]", user_name.strip())
+        if user_contact.strip():
+            final_letter = final_letter.replace("[Your Contact Information]", user_contact.strip())
+        st.text_area("You can copy or download this letter:", value=final_letter, height=240)
+
+        lang = str(st.session_state.get("response_language", "English"))
+        report_result = dict(result)
+        report_result["letter"] = final_letter
+        report_text = build_report_text(report_result)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button("Download letter (.txt)", data=final_letter,
+                               file_name="haqdaar_letter.txt", mime="text/plain",
+                               use_container_width=True)
+        with c2:
+            if lang == "English":
+                try:
+                    pdf_bytes = build_report_pdf(report_result)
+                    st.download_button("Download full report (PDF)", data=pdf_bytes,
+                                       file_name="haqdaar_report.pdf", mime="application/pdf",
+                                       use_container_width=True)
+                except Exception:
+                    st.download_button("Download full report (.txt)", data=report_text,
+                                       file_name="haqdaar_report.txt", mime="text/plain",
+                                       use_container_width=True)
+            else:
+                st.download_button("Download full report (.txt)", data=report_text,
+                                   file_name="haqdaar_report.txt", mime="text/plain",
+                                   use_container_width=True)
+                st.caption("PDF export is available for English; other languages export as text.")
+
+        mailto = "mailto:?subject=" + urllib.parse.quote("My Haqdaar letter") + "&body=" + urllib.parse.quote(final_letter)
+        read_src = final_letter.replace("\\", " ").replace("`", "'")
+        lang_codes = {"English": "en", "Hindi": "hi", "Kannada": "kn", "Tamil": "ta"}
+        lang_full = {"à¤¹à¤¿à¤¨à¥à¤¦à¥€ (Hindi)": "Hindi", "à²•à²¨à³à²¨à²¡ (Kannada)": "Kannada", "à®¤à®®à®¿à®´à¯ (Tamil)": "Tamil"}.get(lang, "English")
+        speak_code = lang_codes.get(lang_full, "en")
+        import json as _json
+        payload = _json.dumps(final_letter)
+        st.components.v1.html(
+            "<div class='hq-toolbar'>"
+            f"<a class='hq-tool-btn' href=\"{mailto}\">\u2709 Email this letter</a>"
+            "<button class='hq-tool-btn' onclick=\"navigator.clipboard.writeText(" + payload + ");this.innerText='\u2713 Copied';\">\u29C9 Copy letter</button>"
+            "<button class='hq-tool-btn' onclick=\"var u=new SpeechSynthesisUtterance(" + payload + ");u.lang='" + speak_code + "';window.speechSynthesis.cancel();window.speechSynthesis.speak(u);\">\u25B6 Read aloud</button>"
+            "<button class='hq-tool-btn' onclick=\"window.speechSynthesis.cancel();\">\u25A0 Stop</button>"
+            "</div>"
+            "<style>.hq-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0;font-family:'Segoe UI',sans-serif;}"
+            ".hq-tool-btn{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #E1DFDD;border-radius:6px;padding:7px 13px;font-size:.84rem;font-weight:600;color:#242424;cursor:pointer;text-decoration:none;}"
+            ".hq-tool-btn:hover{border-color:#0078D4;color:#0078D4;}</style>",
+            height=56,
+        )
+    else:
+        st.markdown("<div class='hq-muted'>No letter drafted.</div>", unsafe_allow_html=True)
+
+
+def _render_sources_and_disclaimer(result):
+    if result.get("sources"):
+        st.markdown(sources_html(result["sources"]), unsafe_allow_html=True)
+    if result.get("disclaimer"):
+        st.markdown(f"<div class='hq-disclaimer'>{html.escape(result['disclaimer'])}</div>", unsafe_allow_html=True)
+
+
+def _render_trace(result):
+    with st.expander("Reasoning trace (how Haqdaar worked this out)"):
+        st.markdown(trace_html(result.get("trace", [])), unsafe_allow_html=True)
+
+
+def _render_grounded_centered(result, nonce):
+    render_glance(result)
+    render_explanation(result)
+    render_rights(result)
+    render_action_plan(result, nonce)
+    render_letter(result, nonce)
+
+
+def _render_grounded_body(result, nonce, layout):
+    # Layouts A (understand_act) and B (reading_pane) are built in the next steps;
+    # render the classic centered body for now so the switch is safe to toggle.
+    if layout in ("understand_act", "reading_pane"):
+        st.caption("This layout is being built â€” showing the classic layout for now.")
+        _render_grounded_centered(result, nonce)
+    else:
+        _render_grounded_centered(result, nonce)
+
+
+def render_results(result, layout="centered"):
+    nonce = st.session_state.result_nonce
+    if "error" in result:
+        _render_error(result)
+        return
+    st.markdown("<div class='hq-divider'></div>", unsafe_allow_html=True)
+    if not result.get("grounded"):
+        _render_ungrounded(result)
+    else:
+        _render_grounded_body(result, nonce, layout)
+    _render_sources_and_disclaimer(result)
+    _render_trace(result)
+
+
 with st.sidebar:
     st.markdown("### About Haqdaar")
     st.markdown(
@@ -118,6 +307,14 @@ with st.sidebar:
     )
     st.caption("Built with Azure AI Foundry · Foundry IQ · GitHub Copilot · Streamlit")
     st.markdown("[View source on GitHub](https://github.com/chirustark17/haqdaar)")
+    if SHOW_LAYOUT_SWITCHER:
+        st.markdown("#### Layout (A/B test)")
+        _layout_keys = list(LAYOUT_LABELS.keys())
+        _layout_vals = list(LAYOUT_LABELS.values())
+        _cur = st.session_state.get("results_layout", DEFAULT_RESULTS_LAYOUT)
+        _idx = _layout_vals.index(_cur) if _cur in _layout_vals else 0
+        _picked = st.radio("Results layout", _layout_keys, index=_idx, label_visibility="collapsed")
+        st.session_state.results_layout = LAYOUT_LABELS[_picked]
 
 if st.session_state.get("large_text"):
     st.markdown(large_text_css(), unsafe_allow_html=True)
@@ -190,138 +387,13 @@ if st.button("Find what I'm entitled to", type="primary"):
             progress.empty()
         st.session_state.result_nonce += 1
 
+active_layout = (
+    st.session_state.get("results_layout", DEFAULT_RESULTS_LAYOUT)
+    if SHOW_LAYOUT_SWITCHER else DEFAULT_RESULTS_LAYOUT
+)
+
 result = st.session_state.result
 if result:
-    nonce = st.session_state.result_nonce
-    if "error" in result:
-        st.markdown(
-            message_bar_html("Something went wrong while analysing your situation. Please try again.", "error"),
-            unsafe_allow_html=True,
-        )
-        with st.expander("Technical detail"):
-            st.code(result["error"])
-    else:
-        st.markdown("<div class='hq-divider'></div>", unsafe_allow_html=True)
-        if not result.get("grounded"):
-            st.markdown(
-                message_bar_html(result.get("explanation", "No grounded information found."), "warning"),
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                glance_html(
-                    len(result.get("rights", [])),
-                    len(result.get("action_plan", [])),
-                    len(result.get("sources", [])),
-                    str(st.session_state.get("response_language", "English")),
-                ),
-                unsafe_allow_html=True,
-            )
-            if st.session_state.lang_notice:
-                st.markdown(message_bar_html(st.session_state.lang_notice, "warning"), unsafe_allow_html=True)
-            st.markdown("<div class='hq-h2'>Explanation</div>", unsafe_allow_html=True)
-            st.markdown(summary_html(result.get("explanation", "")), unsafe_allow_html=True)
-
-            st.markdown("<div class='hq-h2'>Rights &amp; benefits you may qualify for</div>", unsafe_allow_html=True)
-            rights = result.get("rights", [])
-            if rights:
-                st.markdown(rights_html(rights), unsafe_allow_html=True)
-            else:
-                st.markdown(
-                    "<div class='hq-muted'>No specific entitlements identified from the available sources.</div>",
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown("<div class='hq-h2'>Action plan</div>", unsafe_allow_html=True)
-            steps = result.get("action_plan", [])
-            if steps:
-                st.caption("Tick off each step as you complete it:")
-                done = 0
-                for i, step in enumerate(steps, 1):
-                    if st.checkbox(f"{i}. {step}", key=f"plan_{nonce}_{i}"):
-                        done += 1
-                st.progress(done / len(steps))
-                if done == len(steps):
-                    st.markdown(
-                        message_bar_html("All steps done — you're ready to send your letter below!", "info"),
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.caption(f"{done} of {len(steps)} steps completed")
-            else:
-                st.markdown("<div class='hq-muted'>No action steps available.</div>", unsafe_allow_html=True)
-
-            st.markdown("<div class='hq-h2'>Drafted letter</div>", unsafe_allow_html=True)
-            letter = result.get("letter", "")
-            if letter:
-                st.caption("Personalise it (optional) - your details replace the placeholders live:")
-                pcol1, pcol2 = st.columns(2)
-                with pcol1:
-                    user_name = st.text_input("Your name", key=f"name_{nonce}")
-                with pcol2:
-                    user_contact = st.text_input("Your contact info", key=f"contact_{nonce}")
-                final_letter = letter
-                if user_name.strip():
-                    final_letter = final_letter.replace("[Your Name]", user_name.strip())
-                if user_contact.strip():
-                    final_letter = final_letter.replace("[Your Contact Information]", user_contact.strip())
-                st.text_area("You can copy or download this letter:", value=final_letter, height=240)
-
-                lang = str(st.session_state.get("response_language", "English"))
-                report_result = dict(result)
-                report_result["letter"] = final_letter
-                report_text = build_report_text(report_result)
-
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.download_button("Download letter (.txt)", data=final_letter,
-                                       file_name="haqdaar_letter.txt", mime="text/plain",
-                                       use_container_width=True)
-                with c2:
-                    if lang == "English":
-                        try:
-                            pdf_bytes = build_report_pdf(report_result)
-                            st.download_button("Download full report (PDF)", data=pdf_bytes,
-                                               file_name="haqdaar_report.pdf", mime="application/pdf",
-                                               use_container_width=True)
-                        except Exception:
-                            st.download_button("Download full report (.txt)", data=report_text,
-                                               file_name="haqdaar_report.txt", mime="text/plain",
-                                               use_container_width=True)
-                    else:
-                        st.download_button("Download full report (.txt)", data=report_text,
-                                           file_name="haqdaar_report.txt", mime="text/plain",
-                                           use_container_width=True)
-                        st.caption("PDF export is available for English; other languages export as text.")
-
-                mailto = "mailto:?subject=" + urllib.parse.quote("My Haqdaar letter") + "&body=" + urllib.parse.quote(final_letter)
-                read_src = final_letter.replace("\\", " ").replace("`", "'")
-                lang_codes = {"English": "en", "Hindi": "hi", "Kannada": "kn", "Tamil": "ta"}
-                lang_full = {"हिन्दी (Hindi)": "Hindi", "ಕನ್ನಡ (Kannada)": "Kannada", "தமிழ் (Tamil)": "Tamil"}.get(lang, "English")
-                speak_code = lang_codes.get(lang_full, "en")
-                import json as _json
-                payload = _json.dumps(final_letter)
-                st.components.v1.html(
-                    "<div class='hq-toolbar'>"
-                    f"<a class='hq-tool-btn' href=\"{mailto}\">\u2709 Email this letter</a>"
-                    "<button class='hq-tool-btn' onclick=\"navigator.clipboard.writeText(" + payload + ");this.innerText='\u2713 Copied';\">\u29C9 Copy letter</button>"
-                    "<button class='hq-tool-btn' onclick=\"var u=new SpeechSynthesisUtterance(" + payload + ");u.lang='" + speak_code + "';window.speechSynthesis.cancel();window.speechSynthesis.speak(u);\">\u25B6 Read aloud</button>"
-                    "<button class='hq-tool-btn' onclick=\"window.speechSynthesis.cancel();\">\u25A0 Stop</button>"
-                    "</div>"
-                    "<style>.hq-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0;font-family:'Segoe UI',sans-serif;}"
-                    ".hq-tool-btn{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #E1DFDD;border-radius:6px;padding:7px 13px;font-size:.84rem;font-weight:600;color:#242424;cursor:pointer;text-decoration:none;}"
-                    ".hq-tool-btn:hover{border-color:#0078D4;color:#0078D4;}</style>",
-                    height=56,
-                )
-            else:
-                st.markdown("<div class='hq-muted'>No letter drafted.</div>", unsafe_allow_html=True)
-
-        if result.get("sources"):
-            st.markdown(sources_html(result["sources"]), unsafe_allow_html=True)
-        if result.get("disclaimer"):
-            st.markdown(f"<div class='hq-disclaimer'>{html.escape(result['disclaimer'])}</div>", unsafe_allow_html=True)
-
-        with st.expander("Reasoning trace (how Haqdaar worked this out)"):
-            st.markdown(trace_html(result.get("trace", [])), unsafe_allow_html=True)
+    render_results(result, active_layout)
 
 st.markdown(footer_html(), unsafe_allow_html=True)
