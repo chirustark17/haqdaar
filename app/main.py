@@ -258,11 +258,23 @@ def _render_grounded_centered(result, nonce):
     render_letter(result, nonce)
 
 
+def _render_grounded_understand_act(result, nonce):
+    render_glance(result)
+    col_l, col_r = st.columns([1.18, 0.82], gap="large")
+    with col_l:
+        render_explanation(result)
+        render_rights(result)
+    with col_r:
+        render_action_plan(result, nonce)
+    render_letter(result, nonce)
+
+
 def _render_grounded_body(result, nonce, layout):
-    # Layouts A (understand_act) and B (reading_pane) are built in the next steps;
-    # render the classic centered body for now so the switch is safe to toggle.
-    if layout in ("understand_act", "reading_pane"):
-        st.caption("This layout is being built — showing the classic layout for now.")
+    if layout == "understand_act":
+        _render_grounded_understand_act(result, nonce)
+    elif layout == "reading_pane":
+        # Layout B is built in the next step; render classic for now.
+        st.caption("This layout is being built - showing the classic layout for now.")
         _render_grounded_centered(result, nonce)
     else:
         _render_grounded_centered(result, nonce)
@@ -315,6 +327,13 @@ with st.sidebar:
         _idx = _layout_vals.index(_cur) if _cur in _layout_vals else 0
         _picked = st.radio("Results layout", _layout_keys, index=_idx, label_visibility="collapsed")
         st.session_state.results_layout = LAYOUT_LABELS[_picked]
+
+active_layout = (
+    st.session_state.get("results_layout", DEFAULT_RESULTS_LAYOUT)
+    if SHOW_LAYOUT_SWITCHER else DEFAULT_RESULTS_LAYOUT
+)
+if active_layout in ("understand_act", "reading_pane"):
+    st.markdown("<style>.block-container{max-width:1180px;}</style>", unsafe_allow_html=True)
 
 if st.session_state.get("large_text"):
     st.markdown(large_text_css(), unsafe_allow_html=True)
@@ -386,11 +405,6 @@ if st.button("Find what I'm entitled to", type="primary"):
         finally:
             progress.empty()
         st.session_state.result_nonce += 1
-
-active_layout = (
-    st.session_state.get("results_layout", DEFAULT_RESULTS_LAYOUT)
-    if SHOW_LAYOUT_SWITCHER else DEFAULT_RESULTS_LAYOUT
-)
 
 result = st.session_state.result
 if result:
