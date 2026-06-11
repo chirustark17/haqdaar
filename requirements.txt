@@ -2,6 +2,7 @@
 streamlit
 python-dotenv
 openai
+fpdf2
 
 # Azure Foundry SDK + Hugging Face deps are added during the grounding and
 # classification steps, using exact package names from the official docs.

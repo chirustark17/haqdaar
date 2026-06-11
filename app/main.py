@@ -2,6 +2,7 @@
 
 import sys
 import html
+import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -9,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 from agent.pipeline import run_pipeline
 from agent.i18n import LANGUAGES, to_english, translate_result
+from agent.report import build_report_text, build_report_pdf
 from ui.styles import (
     inject_fluent_styles,
     hero_html,
@@ -252,7 +254,7 @@ if result:
             st.markdown("<div class='hq-h2'>Drafted letter</div>", unsafe_allow_html=True)
             letter = result.get("letter", "")
             if letter:
-                st.caption("Personalise it (optional) — your details replace the placeholders live:")
+                st.caption("Personalise it (optional) - your details replace the placeholders live:")
                 pcol1, pcol2 = st.columns(2)
                 with pcol1:
                     user_name = st.text_input("Your name", key=f"name_{nonce}")
@@ -264,7 +266,53 @@ if result:
                 if user_contact.strip():
                     final_letter = final_letter.replace("[Your Contact Information]", user_contact.strip())
                 st.text_area("You can copy or download this letter:", value=final_letter, height=240)
-                st.download_button("Download letter", data=final_letter, file_name="haqdaar_letter.txt", mime="text/plain")
+
+                lang = str(st.session_state.get("response_language", "English"))
+                report_result = dict(result)
+                report_result["letter"] = final_letter
+                report_text = build_report_text(report_result)
+
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.download_button("Download letter (.txt)", data=final_letter,
+                                       file_name="haqdaar_letter.txt", mime="text/plain",
+                                       use_container_width=True)
+                with c2:
+                    if lang == "English":
+                        try:
+                            pdf_bytes = build_report_pdf(report_result)
+                            st.download_button("Download full report (PDF)", data=pdf_bytes,
+                                               file_name="haqdaar_report.pdf", mime="application/pdf",
+                                               use_container_width=True)
+                        except Exception:
+                            st.download_button("Download full report (.txt)", data=report_text,
+                                               file_name="haqdaar_report.txt", mime="text/plain",
+                                               use_container_width=True)
+                    else:
+                        st.download_button("Download full report (.txt)", data=report_text,
+                                           file_name="haqdaar_report.txt", mime="text/plain",
+                                           use_container_width=True)
+                        st.caption("PDF export is available for English; other languages export as text.")
+
+                mailto = "mailto:?subject=" + urllib.parse.quote("My Haqdaar letter") + "&body=" + urllib.parse.quote(final_letter)
+                read_src = final_letter.replace("\\", " ").replace("`", "'")
+                lang_codes = {"English": "en", "Hindi": "hi", "Kannada": "kn", "Tamil": "ta"}
+                lang_full = {"हिन्दी (Hindi)": "Hindi", "ಕನ್ನಡ (Kannada)": "Kannada", "தமிழ் (Tamil)": "Tamil"}.get(lang, "English")
+                speak_code = lang_codes.get(lang_full, "en")
+                import json as _json
+                payload = _json.dumps(final_letter)
+                st.components.v1.html(
+                    "<div class='hq-toolbar'>"
+                    f"<a class='hq-tool-btn' href=\"{mailto}\">\u2709 Email this letter</a>"
+                    "<button class='hq-tool-btn' onclick=\"navigator.clipboard.writeText(" + payload + ");this.innerText='\u2713 Copied';\">\u29C9 Copy letter</button>"
+                    "<button class='hq-tool-btn' onclick=\"var u=new SpeechSynthesisUtterance(" + payload + ");u.lang='" + speak_code + "';window.speechSynthesis.cancel();window.speechSynthesis.speak(u);\">\u25B6 Read aloud</button>"
+                    "<button class='hq-tool-btn' onclick=\"window.speechSynthesis.cancel();\">\u25A0 Stop</button>"
+                    "</div>"
+                    "<style>.hq-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0;font-family:'Segoe UI',sans-serif;}"
+                    ".hq-tool-btn{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #E1DFDD;border-radius:6px;padding:7px 13px;font-size:.84rem;font-weight:600;color:#242424;cursor:pointer;text-decoration:none;}"
+                    ".hq-tool-btn:hover{border-color:#0078D4;color:#0078D4;}</style>",
+                    height=56,
+                )
             else:
                 st.markdown("<div class='hq-muted'>No letter drafted.</div>", unsafe_allow_html=True)
 

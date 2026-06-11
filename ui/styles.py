@@ -108,6 +108,15 @@ h1,h2,h3,h4,h5,h6,
 .hq-glance{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;}
 .hq-glance-chip{display:inline-flex;align-items:center;gap:7px;background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:16px;padding:6px 13px;font-size:.84rem;font-weight:600;color:var(--hq-ink2);box-shadow:var(--hq-shadow);}
 .hq-footer{margin-top:36px;padding-top:14px;border-top:1px solid var(--hq-line);text-align:center;font-size:.78rem;color:var(--hq-muted);line-height:1.5;}
+.hq-snip{margin:6px 0 0;}
+.hq-snip summary{cursor:pointer;font-size:.78rem;color:#005A9E;font-weight:600;list-style:none;}
+.hq-snip summary::-webkit-details-marker{display:none;}
+.hq-snip summary::before{content:"\\25B8 ";}
+.hq-snip[open] summary::before{content:"\\25BE ";}
+.hq-snip-body{margin-top:6px;padding:10px 12px;background:#FAF9F8;border:1px solid var(--hq-line);border-radius:6px;font-size:.84rem;color:var(--hq-ink2);line-height:1.5;white-space:pre-wrap;}
+.hq-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 4px;}
+.hq-tool-btn{display:inline-flex;align-items:center;gap:7px;background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:6px;padding:7px 13px;font-size:.84rem;font-weight:600;color:var(--hq-ink);cursor:pointer;box-shadow:var(--hq-shadow);text-decoration:none;transition:all .15s ease;}
+.hq-tool-btn:hover{box-shadow:var(--hq-shadow-hover);transform:translateY(-1px);border-color:#C8C6C4;}
 </style>
 """
 
@@ -169,9 +178,16 @@ def rights_html(rights) -> str:
         name = html.escape(str(r.get("name", "Benefit")))
         why = r.get("why_eligible")
         cit = r.get("citation")
+        snippet = r.get("text") or r.get("snippet")
         body = f"<div class='hq-card-body'>{html.escape(str(why))}</div>" if why else ""
         chip = f"<span class='hq-chip'>{html.escape(str(cit))}</span>" if cit else ""
-        cards.append(f"<div class='hq-card'><div class='hq-card-title'>{name}</div>{body}{chip}</div>")
+        snip = ""
+        if snippet:
+            snip = (
+                "<details class='hq-snip'><summary>View cited source text</summary>"
+                f"<div class='hq-snip-body'>{html.escape(str(snippet))}</div></details>"
+            )
+        cards.append(f"<div class='hq-card'><div class='hq-card-title'>{name}</div>{body}{chip}{snip}</div>")
     return "".join(cards)
 
 
