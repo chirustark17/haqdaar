@@ -31,7 +31,7 @@ inject_fluent_styles()
 
 # Reversible results-layout switch (A/B test). Set SHOW_LAYOUT_SWITCHER=False to hide for the final judged build.
 SHOW_LAYOUT_SWITCHER = True
-DEFAULT_RESULTS_LAYOUT = "centered"  # "centered" | "understand_act" | "reading_pane"
+DEFAULT_RESULTS_LAYOUT = "understand_act"  # "centered" | "understand_act" | "reading_pane"
 LAYOUT_LABELS = {
     "Centered (classic)": "centered",
     "A · Understand → Act": "understand_act",
@@ -44,7 +44,7 @@ PRESETS = {
     "Small farmer": "I farm a small plot and need help with income support, grants, and application steps for my rural family.",
 }
 
-for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": "", "results_layout": "centered"}.items():
+for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": "", "results_layout": "understand_act"}.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
