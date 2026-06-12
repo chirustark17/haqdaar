@@ -30,7 +30,7 @@ st.set_page_config(page_title="Haqdaar", page_icon="🪪", layout="wide")
 inject_fluent_styles()
 
 # Reversible results-layout switch (A/B test). Set SHOW_LAYOUT_SWITCHER=False to hide for the final judged build.
-SHOW_LAYOUT_SWITCHER = True
+SHOW_LAYOUT_SWITCHER = False
 DEFAULT_RESULTS_LAYOUT = "understand_act"  # "centered" | "understand_act" | "reading_pane"
 LAYOUT_LABELS = {
     "Centered (classic)": "centered",
