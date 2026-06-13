@@ -26,7 +26,7 @@ h1,h2,h3,h4,h5,h6,
 .stApp{background:var(--hq-bg);}
 .block-container{max-width:880px;padding-top:2.4rem;padding-bottom:3rem;margin:0 auto;}
 #MainMenu,footer{visibility:hidden;}
-[data-testid="stToolbar"],[data-testid="stDecoration"]{display:none;}
+[data-testid="stDecoration"]{display:none;}
 [data-testid="stHeader"]{background:transparent;}
 
 .stButton>button{border-radius:6px!important;font-weight:600!important;border:1px solid var(--hq-line)!important;color:var(--hq-ink)!important;background:var(--hq-surface)!important;box-shadow:var(--hq-shadow)!important;transition:all .15s ease!important;}
@@ -97,8 +97,10 @@ h1,h2,h3,h4,h5,h6,
 .hq-trace-step{flex:0 0 auto;font-weight:600;color:var(--hq-blue);font-size:.84rem;min-width:96px;}
 .hq-trace-detail{color:var(--hq-ink2);font-size:.88rem;line-height:1.45;}
 
-/* Keep the sidebar reopen control visible (header chrome is hidden) */
-[data-testid="stSidebarCollapsedControl"],[data-testid="collapsedControl"]{display:flex!important;visibility:visible!important;opacity:1!important;z-index:999990!important;}
+/* Sidebar reopen control lives inside the toolbar (Streamlit 1.58+: stExpandSidebarButton). */
+/* Keep the toolbar rendered so the control works; hide only its action cluster (Deploy + menu). */
+[data-testid="stToolbar"]{background:transparent!important;}
+[data-testid="stToolbarActions"]{display:none!important;}
 .hq-feat-row{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 16px;}
 .hq-feat{flex:1 1 220px;background:var(--hq-surface);border:1px solid var(--hq-line);border-radius:var(--hq-radius);box-shadow:var(--hq-shadow);padding:14px 16px;transition:box-shadow .15s ease,transform .15s ease;}
 .hq-feat:hover{box-shadow:var(--hq-shadow-hover);transform:translateY(-1px);}
