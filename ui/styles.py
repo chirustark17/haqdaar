@@ -55,17 +55,19 @@ h1,h2,h3,h4,h5,h6,
 .hq-proc-spin{width:16px;height:16px;border:2.5px solid #C7E0F4;border-top-color:#0078D4;border-radius:50%;animation:hqspin .8s linear infinite;}
 @keyframes hqspin{to{transform:rotate(360deg);}}
 .hq-proc-steps{display:flex;flex-direction:column;gap:8px;}
-.hq-proc-step{display:flex;align-items:center;gap:11px;font-size:.92rem;color:var(--hq-muted);border-left:3px solid transparent;padding-left:10px;border-radius:2px;animation:hqstep 4.9s ease-in-out infinite;}
+.hq-proc-step{display:flex;align-items:center;gap:11px;font-size:.92rem;color:var(--hq-muted);border-left:3px solid transparent;padding-left:10px;border-radius:2px;transition:opacity .35s ease,border-left-color .35s ease,background .35s ease;}
 .hq-proc-step .hq-proc-label{font-weight:600;color:var(--hq-ink2);}
-.hq-proc-dot{flex:0 0 24px;height:24px;width:24px;border-radius:50%;background:#EFF6FC;border:2px solid #C7E0F4;color:#0078D4;font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;}
-@keyframes hqstep{0%,100%{opacity:.5;border-left-color:transparent;background:transparent;}45%,65%{opacity:1;border-left-color:#0078D4;background:#F3F9FD;}}
-.hq-proc-step:nth-child(1){animation-delay:0s;}
-.hq-proc-step:nth-child(2){animation-delay:.7s;}
-.hq-proc-step:nth-child(3){animation-delay:1.4s;}
-.hq-proc-step:nth-child(4){animation-delay:2.1s;}
-.hq-proc-step:nth-child(5){animation-delay:2.8s;}
-.hq-proc-step:nth-child(6){animation-delay:3.5s;}
-.hq-proc-step:nth-child(7){animation-delay:4.2s;}
+.hq-proc-dot{flex:0 0 24px;height:24px;width:24px;border-radius:50%;background:#EFF6FC;border:2px solid #C7E0F4;color:#0078D4;font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;transition:background .3s,border-color .3s,color .3s;}
+.hq-proc-step.hq-active{opacity:1;border-left-color:#0078D4;background:#F3F9FD;}
+.hq-proc-step.hq-active .hq-proc-dot{background:#0078D4;border-color:#0078D4;color:#fff;}
+.hq-proc-step.hq-active .hq-proc-label{color:#0078D4;}
+.hq-proc-step.hq-done{opacity:.65;border-left-color:#107C10;}
+.hq-proc-step.hq-done .hq-proc-dot::after{content:'\2713';}
+.hq-proc-step.hq-done .hq-proc-dot-num{display:none;}
+@keyframes hqpulse{0%,100%{opacity:1;}50%{opacity:.55;}}
+.hq-proc-step.hq-hold{animation:hqpulse 1.6s ease-in-out infinite;}
+.hq-proc-bar-wrap{height:3px;background:#EFF6FC;border-radius:2px;margin:10px 0 2px;overflow:hidden;}
+.hq-proc-bar{height:3px;background:#0078D4;border-radius:2px;width:0%;}
 
 .hq-section-label{font-size:.82rem;font-weight:600;color:var(--hq-muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px;}
 .hq-h2{font-size:1.22rem;font-weight:700;color:var(--hq-ink);margin:20px 0 8px;letter-spacing:-.01em;}
@@ -142,7 +144,16 @@ def hero_html() -> str:
     )
 
 
-def processing_html() -> str:
+def processing_html(budget: float = 10.0) -> str:
+    """Render the 7-step reasoning panel as a time-based estimated stepper.
+
+    budget  -- estimated total duration in seconds (rolling average from session_state).
+              Steps advance one-by-one via CSS animation-delay + finite forwards keyframes.
+              If pipeline finishes early, progress.empty() tears the panel down immediately
+              (the "finish fast" twist is already handled for free by the caller).
+              If budget elapses while still running, the last step holds with a gentle pulse.
+              Framed honestly as an estimate; the true trace appears after results.
+    """
     steps = [
         ("Understand", "Reading your situation"),
         ("Classify", "Identifying the domain"),
@@ -152,16 +163,82 @@ def processing_html() -> str:
         ("Act", "Drafting your letter"),
         ("Safeguard", "Verifying every claim is cited"),
     ]
+    weights = [0.06, 0.06, 0.20, 0.26, 0.14, 0.20, 0.08]
+    n = len(steps)
+
+    cum = 0.0
+    starts = []
+    for w in weights:
+        starts.append(cum)
+        cum += w * budget
+
+    kf_lines = []
+    cls_lines = []
+    STEP_DUR = 0.38
+
+    for i in range(n):
+        t0 = starts[i]
+        t1 = starts[i + 1] if i < n - 1 else budget
+        slice_dur = max(t1 - t0, 0.5)
+
+        kf_lines.append(
+            f"@keyframes hqA{i}{{0%{{opacity:.45;border-left-color:transparent;background:transparent;}}"
+            f"1%{{opacity:1;border-left-color:#0078D4;background:#F3F9FD;}}100%{{opacity:1;"
+            f"border-left-color:#0078D4;background:#F3F9FD;}}}}"
+        )
+        cls_lines.append(
+            f".hq-proc-step:nth-child({i+1}){{animation:hqA{i} {slice_dur:.2f}s forwards;"
+            f"animation-delay:{t0:.2f}s;}}"
+        )
+
+        if i < n - 1:
+            kf_lines.append(
+                f"@keyframes hqD{i}{{0%{{opacity:1;border-left-color:#0078D4;background:#F3F9FD;}}"
+                f"100%{{opacity:.6;border-left-color:#107C10;background:transparent;}}}}"
+            )
+            cls_lines.append(
+                f".hq-proc-step:nth-child({i+1}) .hq-proc-dot{{animation:hqDot{i} {STEP_DUR:.2f}s forwards;"
+                f"animation-delay:{t1:.2f}s;}}"
+            )
+            kf_lines.append(
+                f"@keyframes hqDot{i}{{0%{{background:#0078D4;border-color:#0078D4;color:#fff;}}"
+                f"100%{{background:#107C10;border-color:#107C10;color:#fff;}}}}"
+            )
+        else:
+            kf_lines.append(
+                f"@keyframes hqHold{{0%,100%{{opacity:1;}}50%{{opacity:.5;}}}}"
+            )
+            cls_lines.append(
+                f".hq-proc-step:nth-child({n}){{animation:hqA{i} {slice_dur:.2f}s forwards,"
+                f"hqHold 1.6s {budget:.2f}s ease-in-out infinite;"
+                f"animation-delay:{t0:.2f}s,0s;}}"
+            )
+
+    kf_lines.append(
+        f"@keyframes hqBar{{from{{width:0%}}to{{width:94%}}}}"
+    )
+    cls_lines.append(
+        f".hq-proc-bar{{animation:hqBar {budget:.2f}s linear forwards;}}"
+    )
+
+    inline_css = "<style>" + "".join(kf_lines) + "".join(cls_lines) + "</style>"
+
     rows = []
     for i, (name, desc) in enumerate(steps, 1):
         rows.append(
-            f"<div class='hq-proc-step'><div class='hq-proc-dot'>{i}</div>"
+            f"<div class='hq-proc-step' style='opacity:.45'>"
+            f"<div class='hq-proc-dot'><span class='hq-proc-dot-num'>{i}</span></div>"
             f"<div><span class='hq-proc-label'>{name}</span> — {html.escape(desc)}</div></div>"
         )
+
     return (
-        "<div class='hq-proc'><div class='hq-proc-head'>"
-        "<div class='hq-proc-spin'></div>Haqdaar is reasoning through your case…</div>"
-        f"<div class='hq-proc-steps'>{''.join(rows)}</div></div>"
+        inline_css
+        + "<div class='hq-proc'><div class='hq-proc-head'>"
+        + "<div class='hq-proc-spin'></div>Working through your case…"
+        + "<span style='font-size:.78rem;font-weight:400;color:var(--hq-muted);margin-left:8px;'>"
+        + "(estimated progress — full trace appears with your results)</span></div>"
+        + "<div class='hq-proc-bar-wrap'><div class='hq-proc-bar'></div></div>"
+        + f"<div class='hq-proc-steps'>{''.join(rows)}</div></div>"
     )
 
 

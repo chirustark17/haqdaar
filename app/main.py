@@ -2,6 +2,7 @@
 
 import sys
 import html
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -44,7 +45,7 @@ PRESETS = {
     "Small farmer": "I farm a small plot and need help with income support, grants, and application steps for my rural family.",
 }
 
-for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": "", "results_layout": "understand_act"}.items():
+for _k, _v in {"situation_text": "", "result": None, "doc_error": "", "doc_notice": "", "result_nonce": 0, "lang_notice": "", "results_layout": "understand_act", "run_times": []}.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -412,8 +413,12 @@ if st.button("Find what I'm entitled to", type="primary"):
     if not situation:
         st.warning("Please describe your situation first.")
     else:
+        # --- time-based stepper: compute budget from rolling average ---
+        _times = st.session_state.get("run_times", [])
+        _budget = (sum(_times[-5:]) / len(_times[-5:])) * 1.15 if _times else 10.0
         progress = st.empty()
-        progress.markdown(processing_html(), unsafe_allow_html=True)
+        progress.markdown(processing_html(_budget), unsafe_allow_html=True)
+        _t0 = time.perf_counter()
         try:
             lang = LANGUAGES.get(st.session_state.get("response_language", "English"), "English")
             pipeline_input = to_english(situation, lang)
@@ -429,6 +434,9 @@ if st.button("Find what I'm entitled to", type="primary"):
         except Exception as e:
             st.session_state.result = {"error": str(e)}
         finally:
+            _elapsed = time.perf_counter() - _t0
+            times = st.session_state.get("run_times", [])
+            st.session_state.run_times = (times + [_elapsed])[-10:]
             progress.empty()
         st.session_state.result_nonce += 1
 
