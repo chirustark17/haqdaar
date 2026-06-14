@@ -1,339 +1,229 @@
-# House Prices: Advanced Regression Techniques
+# Haqdaar
 
-## Competition Overview
+**Know your rights. Get what you're due.**
 
-This project tackles the Kaggle House Prices competition, which challenges participants to predict residential home sale prices in Ames, Iowa using 79 explanatory variables covering nearly every aspect of the properties.
+> A grounded civic-rights co-pilot. You describe a confusing situation — or paste/upload a confusing official document (a rejection letter, notice, bill, or form) — and Haqdaar gives you a plain-language explanation, a **cited** list of the benefits and rights you actually qualify for, a step-by-step action plan, and a ready-to-send **drafted letter**. Every claim is backed by a citation to the source rule, powered by **Microsoft Foundry IQ**.
 
-**Competition Goal:** Predict the final sale price for each house in the test set.
-
-**Evaluation Metric:** Root-Mean-Squared-Error (RMSE) between the logarithm of predicted and observed sale prices.
+**Hackathon:** Microsoft Agents League (AI Skills Fest 2026)  
+**Track:** Creative Apps (built with GitHub Copilot)  
+**Microsoft IQ layer:** Foundry IQ (grounded, agentic retrieval with citations via Azure AI Search)  
+**Status:** Complete — submitted June 14 2026.
 
 ---
 
-## Project Structure
+## The problem
+
+The benefits, schemes, and protections people are entitled to are buried in dense, jargon-filled rules spread across many sources. The people who need them most — first-time applicants, low-literacy users, the elderly, anyone facing an unfamiliar official process — often can't *discover* what they qualify for or *decode* the documents they receive. Generic chatbots make this worse: they confidently hallucinate eligibility and procedures, which is actively harmful when someone acts on a wrong answer.
+
+Haqdaar takes a different approach. It grounds every answer in the actual rule with a visible citation, proactively surfaces entitlements the user didn't know to ask about, and doesn't stop at information — it drafts the document the user needs to send.
+
+---
+
+## What Haqdaar does
+
+Given a described situation (or a pasted/uploaded official document), Haqdaar produces four things:
+
+1. **Plain-language explanation** — what the situation or document actually means, in clear words.
+2. **Cited rights & benefits** — the schemes, rights, or options the user qualifies for, each with a citation to the source rule.
+3. **Step-by-step action plan** — what to do, which office/body, which documents to bring, and any deadlines.
+4. **A ready-to-send drafted letter** — an application, appeal, or formal request, grounded in the cited rules and ready to personalise, copy, or download.
+
+---
+
+## Why it's different
+
+- **Grounded, not guessed** — every right or benefit cited traces back to a source document retrieved by Foundry IQ. If nothing matches, Haqdaar says so rather than inventing an answer.
+- **Action-complete** — most civic-tech tools stop at information. Haqdaar goes all the way to a sendable letter.
+- **Built for accessibility** — multilingual support (English, Hindi, Kannada, Tamil); large-text mode; read-aloud for the drafted letter.
+- **Transparent reasoning** — the 7-step reasoning trace is visible after every result so users can see exactly how the answer was reached.
+
+---
+
+## The reasoning loop (multi-step and visible)
+
+Every query runs through a 7-step reasoning pipeline. The steps are shown to the user during processing (as an estimated stepper) and the full trace appears after results:
+
+1. **Understand** — parse and clarify the situation.
+2. **Classify** — identify the domain (education, pension, agriculture, health, housing, etc.).
+3. **Ground** — retrieve the exact applicable rules via Foundry IQ, with citations.
+4. **Reason** — assess eligibility against the retrieved rules.
+5. **Plan** — build a concrete, ordered action plan.
+6. **Act** — draft the ready-to-send letter.
+7. **Safeguard** — verify every claim is cited; refuse to answer if nothing is grounded.
+
+The pipeline is implemented in `agent/pipeline.py` using `gpt-4o-mini` on Microsoft Azure AI Foundry (Korea Central).
+
+---
+
+## Architecture
 
 ```
-house-prices/
-├── train.csv                      # Training data (1,460 samples)
-├── test.csv                       # Test data (1,459 samples)
-├── data_description.txt           # Feature descriptions
-├── sample_submission.csv          # Submission format example
-├── house_price_predictor.py       # Main prediction pipeline
-├── analysis_visualization.py      # EDA and visualization
-├── submission.csv                 # Final predictions
-├── house_prices_analysis.png      # Key visualizations
-├── correlation_heatmap.png        # Feature correlations
-└── README.md                      # This file
+User input (text / uploaded PDF or TXT)
+        |
+        v
+  agent/i18n.py          -- translate non-English input to English for retrieval
+        |
+        v
+  agent/pipeline.py      -- 7-step reasoning (run_pipeline); calls grounding + LLM
+        |
+    +---+----------------------------------+
+    |                                      |
+grounding/foundry_iq.py        grounding/knowledge_base.py
+Microsoft Foundry IQ           Local retriever (automatic fallback)
+(Azure AI Search,              if Foundry IQ is unavailable
+ agentic retrieval,
+ semantic ranking,
+ citation from source_data)
+    |
+    +--------------------------------------+
+                                           v
+                             grounding/llm_client.py
+                             OpenAI v1 client ->
+                             gpt-4o-mini on Foundry
+                             (Korea Central)
+        |
+        v
+  agent/i18n.py          -- translate result back to selected language
+        |
+        v
+  agent/report.py        -- build_report_pdf (Microsoft-standard styled PDF)
+                           build_report_text (all languages, plain text)
+        |
+        v
+  app/main.py            -- Streamlit UI (Fluent-styled, Layout A: two-column results)
+  ui/styles.py           -- CSS / HTML helpers
 ```
 
 ---
 
-## Dataset Overview
+## Tech stack
 
-### Target Variable: SalePrice
-- **Mean:** $180,921
-- **Median:** $163,000
-- **Range:** $34,900 - $755,000
-- **Distribution:** Right-skewed (skewness = 1.88)
-
-### Features
-- **Total Features:** 79 explanatory variables
-- **Numerical Features:** 36 (areas, counts, years, etc.)
-- **Categorical Features:** 43 (quality ratings, types, etc.)
-- **Missing Data:** Ranges from 0.07% to 99.5% across features
-
-### Key Feature Categories
-
-1. **Size/Area Features** (Avg. correlation: 0.52)
-   - GrLivArea, TotalBsmtSF, 1stFlrSF, GarageArea, LotArea
-
-2. **Quality Features** (Avg. correlation: 0.43)
-   - OverallQual (0.79), ExterQual, KitchenQual, BsmtQual
-
-3. **Garage Features** (Avg. correlation: 0.63)
-   - GarageCars (0.64), GarageArea (0.62), GarageType, GarageFinish
-
-4. **Room Count Features** (Avg. correlation: 0.40)
-   - FullBath, BedroomAbvGr, TotRmsAbvGrd, Fireplaces
-
-5. **Time Features** (Avg. correlation: 0.39)
-   - YearBuilt, YearRemodAdd, GarageYrBlt
+| Layer | Technology |
+|---|---|
+| Frontend | Streamlit (Fluent-inspired theme: Microsoft Blue #0078D4, Segoe UI) |
+| LLM | gpt-4o-mini on Microsoft Azure AI Foundry (Korea Central) |
+| Grounding / retrieval | Microsoft Foundry IQ -- SearchIndexKnowledgeSource, KnowledgeBaseRetrievalClient, KnowledgeRetrievalSemanticIntent; backed by Azure AI Search Free tier (haqdaar-search, Korea Central) |
+| PDF generation | fpdf2 (core fonts, Latin-1; Microsoft-standard styled output) |
+| Document parsing | pypdf (text-based PDFs; scanned/image PDFs flagged gracefully) |
+| Multilingual | agent/i18n.py -- English, Hindi, Kannada, Tamil |
+| Dev environment | VS Code + GitHub Copilot |
+| Deployment | Local / Streamlit (Azure-ready) |
 
 ---
 
-## Methodology
+## Microsoft IQ integration -- Foundry IQ
 
-### 1. Data Preprocessing
+Haqdaar uses **Foundry IQ** as its grounded knowledge layer (`grounding/foundry_iq.py`).
 
-#### Missing Value Imputation
-- **Categorical NA = "None":** Pool, Garage, Basement, Fireplace features (NA indicates absence)
-- **Numerical NA = 0:** MasVnrArea, Basement SF, Garage measurements
-- **LotFrontage:** Filled with neighborhood median
-- **Other features:** Mode (categorical) or median (numerical)
+**How it works:**
 
-#### Outlier Handling
-- Identified ~4% outliers in key features using IQR method
-- Retained outliers as they represent legitimate high-value properties
-- Used robust scaling to minimize outlier impact
+- A knowledge base (`haqdaar-kb`) is built on Azure AI Search (`haqdaar-search`, Korea Central, Free tier) from a synthetic corpus of rule and scheme documents (`knowledge/*.md`).
+- At query time, `KnowledgeBaseRetrievalClient` issues a `KnowledgeRetrievalSemanticIntent` request -- this is agentic retrieval with semantic ranking.
+- Citations are extracted from `response.references[].source_data` (reranker score + doc key).
+- A local retriever (`grounding/knowledge_base.py`) serves as an automatic fallback if Foundry IQ is unavailable, so the app never hard-fails.
 
-### 2. Feature Engineering
+**Key learnings from wiring this up:**
 
-Created 17 new features to capture additional patterns:
-
-**Aggregate Features:**
-- `TotalSF` = TotalBsmtSF + 1stFlrSF + 2ndFlrSF (Correlation: 0.78)
-- `TotalBath` = FullBath + 0.5×HalfBath + BsmtFullBath + 0.5×BsmtHalfBath
-- `TotalPorchSF` = Sum of all porch areas
-
-**Age Features:**
-- `HouseAge` = YrSold - YearBuilt
-- `RemodAge` = YrSold - YearRemodAdd  
-- `GarageAge` = YrSold - GarageYrBlt
-
-**Binary Indicators:**
-- HasPool, Has2ndFloor, HasGarage, HasBsmt, HasFireplace
-
-**Quality Indices:**
-- `OverallScore` = OverallQual × OverallCond
-- `ExterScore`, `KitchenScore` (mapped quality ratings to numeric)
-
-**Ratios:**
-- `LotAreaRatio` = GrLivArea / LotArea
-- `GarageRatio` = GarageArea / GrLivArea
-- `BasementRatio` = TotalBsmtSF / GrLivArea
-
-### 3. Data Transformation
-
-**Skewness Handling:**
-- Applied log1p transformation to 58 highly skewed features (|skew| > 0.75)
-- Target variable transformed using log1p for RMSE calculation
-
-**Categorical Encoding:**
-- Label encoding for 43 categorical features
-- Preserved ordinal relationships in quality ratings
-
-**Feature Scaling:**
-- RobustScaler applied to all features
-- Reduces influence of outliers while maintaining distributions
-
-### 4. Model Selection & Ensemble
-
-#### Individual Models
-
-| Model | CV RMSE | Weight | Description |
-|-------|---------|---------|-------------|
-| **Ridge Regression** | 0.1394 | 24.3% | L2 regularization (α=10.0) |
-| **Lasso Regression** | 0.1385 | 24.5% | L1 regularization (α=0.0005) |
-| **ElasticNet** | 0.1387 | 24.4% | Combined L1+L2 (α=0.0005, l1_ratio=0.9) |
-| **Gradient Boosting** | 0.1266 | 26.8% | 3000 trees, learning_rate=0.05 |
-
-#### Ensemble Strategy
-- **Weighted Average:** Each model weighted by inverse of its CV RMSE
-- **Best Model:** Gradient Boosting (lowest individual CV score)
-- **Ensemble Benefit:** Reduces variance and improves generalization
-
-### 5. Cross-Validation
-- **Strategy:** 5-Fold KFold with shuffling
-- **Scoring:** Negative MSE (for RMSE calculation)
-- **Purpose:** Reliable performance estimation and prevent overfitting
+- `azure-search-documents==12.0.0` does not include the `file` knowledge source type documented in some preview docs -- the correct class is `SearchIndexKnowledgeSource` (discovered via SDK introspection, not docs).
+- Omitting the embedding model on the search index avoided managed identity requirements incompatible with an Azure for Students subscription.
+- East US 2 was blocked on the restricted subscription; Korea Central worked for both Foundry and AI Search.
 
 ---
 
-## Key Findings
+## GitHub Copilot
 
-### Top 10 Predictive Features
+This project was built using **GitHub Copilot** in VS Code as the primary development tool -- as required by the Creative Apps track.
 
-1. **OverallQual** (0.79) - Overall material and finish quality
-2. **GrLivArea** (0.71) - Above grade living area
-3. **GarageCars** (0.64) - Garage capacity
-4. **GarageArea** (0.62) - Garage size in sq ft
-5. **TotalBsmtSF** (0.61) - Total basement area
-6. **1stFlrSF** (0.61) - First floor area
-7. **FullBath** (0.56) - Number of full bathrooms
-8. **TotRmsAbvGrd** (0.53) - Total rooms above grade
-9. **YearBuilt** (0.52) - Original construction date
-10. **YearRemodAdd** (0.51) - Remodel date
+Copilot was used throughout:
 
-### Insights
+- **Scaffolding** -- generating the initial project structure, `requirements.txt`, `.gitignore`, and boilerplate.
+- **Pipeline implementation** -- Copilot Chat helped design and refine the 7-step `run_pipeline` function, the grounding retrieval loop, and the result schema.
+- **Foundry IQ integration** -- debugging the SDK class hierarchy (especially the `SearchIndexKnowledgeSource` pivot), the `KnowledgeBaseRetrievalClient` wiring, and the `include_reference_source_data` parameter.
+- **UI** -- generating the Streamlit layout, the Fluent-inspired CSS, the two-column results layout, and the interactive checklist + progress bar.
+- **Bug fixes** -- diagnosing and fixing the sandboxed-iframe clipboard issue (copy letter), the stToolbar sidebar-reopen bug (Streamlit 1.58 DOM inspection), and the f-string backslash restriction on Python 3.10.
+- **PDF styling** -- the fpdf2 styled report with the Microsoft-standard header band, section rules, and repeating footer.
+- **Multilingual** -- the `agent/i18n.py` translate-in / translate-out wrapper.
 
-1. **Quality Over Quantity:** Overall quality rating is the strongest predictor (0.79 correlation)
-2. **Living Space Matters:** Combined living area (TotalSF) shows 0.78 correlation
-3. **Garage Impact:** Garage features collectively contribute significantly
-4. **Age Effect:** Newer homes (0-10 years) command ~70% premium over 50+ year old homes
-5. **Neighborhood Premium:** Top neighborhoods (NridgHt, NoRidge) have 2.5x higher median prices
+All Copilot usage is genuine and traceable in the commit history.
 
 ---
 
-## Model Performance
+## Data -- synthetic only
 
-### Cross-Validation Results
-- **Gradient Boosting:** 0.1266 RMSE (Best single model)
-- **Ensemble Average:** ~0.127 RMSE (estimated)
-- **Variance:** ±0.021 RMSE across folds
-
-### Prediction Statistics
-- **Range:** $48,297 - $569,624
-- **Mean:** $177,833
-- **Distribution:** Similar to training data (aligned with $180,921 train mean)
+All knowledge base documents (`knowledge/*.md`, `data/sample_notice.*`) are **entirely synthetic** -- written for demo purposes only. They contain no real personal data (PII), no real government documents, and no real case records. The app is not connected to any live government database. Every result is clearly marked as informational and not legal or financial advice.
 
 ---
 
-## Usage
+## Known limitations and honest caveats
 
-### Run Complete Pipeline
+- **Synthetic knowledge base** -- schemes and rules are illustrative, not live-updated official data. Do not use for real legal or financial decisions.
+- **Read-aloud (regional languages)** -- Hindi/Kannada/Tamil speech depends on voices installed on the listener's operating system. English speech works on all modern browsers. Windows typically includes a Hindi voice; Kannada and Tamil voices may be absent without manual installation.
+- **Scanned / image PDFs** -- pypdf can only extract text from text-based PDFs. Scanned documents are flagged with a clear error and the user is asked to paste the text instead.
+- **Multilingual output** -- translation is done via the LLM (gpt-4o-mini); quality varies by language and domain. Citation strings and filenames are preserved verbatim through translation.
+
+---
+
+## Security and Responsible AI
+
+- All secrets (Azure endpoint, API key, model deployment name) are stored in `.env` -- never committed. A `.env.example` with placeholder values is provided.
+- `.gitignore` excludes `.env`, `__pycache__`, `*.log`, `output/`.
+- The Safeguard step in the pipeline explicitly refuses to answer if no grounded sources are found -- it does not fabricate.
+- All data is synthetic; no PII is processed or stored.
+
+---
+
+## How to run
+
+**Prerequisites:** Python 3.10+, a `.env` file with your Azure / Foundry credentials (see `.env.example`).
+
 ```bash
-python house_price_predictor.py
+# 1. Clone
+git clone https://github.com/chirustark17/haqdaar.git
+cd haqdaar
+
+# 2. Create and activate a virtual environment
+python -m venv .venv
+# Windows:
+.\.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Set up credentials
+cp .env.example .env
+# Edit .env -- fill in AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY,
+# AZURE_OPENAI_DEPLOYMENT, AZURE_SEARCH_ENDPOINT, AZURE_SEARCH_KEY
+
+# 5. Run
+streamlit run app/main.py
 ```
 
-**Output:**
-- `submission.csv` - Competition predictions
-- Console logs with detailed progress and metrics
-
-### Run Analysis & Visualizations
-```bash
-python analysis_visualization.py
-```
-
-**Output:**
-- `house_prices_analysis.png` - Key visualizations
-- `correlation_heatmap.png` - Feature correlation matrix
-- Detailed statistical analysis in console
-
-### Requirements
-```python
-pandas>=1.3.0
-numpy>=1.21.0
-scikit-learn>=1.0.0
-matplotlib>=3.4.0
-seaborn>=0.11.0
-scipy>=1.7.0
-```
+**First run:** the local retriever fallback works immediately. Foundry IQ requires the Azure AI Search index (`haqdaar-index`) to be populated -- run `python grounding/foundry_iq.py` once to build it.
 
 ---
 
-## Advanced Techniques Applied
+## What I learned
 
-1. **Smart Missing Value Imputation**
-   - Domain-specific logic (NA = "None" for absent features)
-   - Neighborhood-based imputation for LotFrontage
+**Foundry IQ and grounding:** The most important thing I learned is that grounding is not just an API call -- it is a design discipline. Getting citations right required understanding how `source_data` is structured in the response, how the semantic ranker re-scores documents, and why the fallback architecture matters. When Foundry IQ was unavailable during development, a hard failure would have blocked all progress; the local fallback made the app continuously demoable.
 
-2. **Comprehensive Feature Engineering**
-   - Aggregate metrics (TotalSF shows 0.78 correlation)
-   - Interaction features (quality × condition scores)
-   - Temporal features (house age, remodel age)
+**SDK introspection over docs:** Preview SDKs drift from their documentation. The `file` knowledge source type documented in some Foundry previews does not exist in `azure-search-documents==12.0.0`. Finding the real class (`SearchIndexKnowledgeSource`) required reading the SDK source directly -- a habit I will carry into every future Azure integration.
 
-3. **Distribution Normalization**
-   - Log transformation for skewed features
-   - Target transformation for symmetric loss function
+**Region policy on student subscriptions:** East US 2 was blocked; Korea Central worked. This kind of silent regional restriction is invisible until you hit it, and it cost several hours. The lesson: always check region availability before scaffolding resources, especially on restricted subscriptions.
 
-4. **Ensemble Learning**
-   - Multiple regression algorithms (Linear + Tree-based)
-   - Weighted averaging by performance
-   - Combines strengths of different model types
+**Isolation as discipline:** Keeping `agent/pipeline.py` and `grounding/foundry_iq.py` locked throughout the UI build phase prevented every UI change from risking a regression in the grounding layer. The boundary between presentation and pipeline was enforced deliberately, not accidentally.
 
-5. **Robust Scaling**
-   - Minimizes outlier influence
-   - Preserves feature distributions
-   - Improves model convergence
+**GitHub Copilot as a pair programmer:** Copilot's biggest value was not code generation -- it was the speed of iteration on debugging. When the sidebar reopen button had a zero-size rect because it lived inside a hidden toolbar, Copilot Chat helped me read the DOM output and reason to the root cause in minutes rather than hours.
 
----
-
-## Model Comparison
-
-### Why This Ensemble Works
-
-**Linear Models (Ridge/Lasso/ElasticNet):**
-- ✅ Handle multicollinearity well
-- ✅ Fast training and prediction
-- ✅ Interpretable coefficients
-- ❌ Assume linear relationships
-
-**Gradient Boosting:**
-- ✅ Captures non-linear patterns
-- ✅ Handles feature interactions
-- ✅ Robust to outliers
-- ❌ More complex, risk of overfitting
-
-**Combined Ensemble:**
-- ✅ Best of both worlds
-- ✅ More robust predictions
-- ✅ Reduced variance
-- ✅ Better generalization
-
----
-
-## Future Improvements
-
-1. **Advanced Feature Engineering**
-   - Polynomial features for key predictors
-   - More sophisticated interaction terms
-   - Geographic clustering of neighborhoods
-
-2. **Additional Models**
-   - XGBoost (alternative boosting algorithm)
-   - LightGBM (faster gradient boosting)
-   - Neural networks for deep feature learning
-   - Stacking ensemble with meta-learner
-
-3. **Hyperparameter Tuning**
-   - Grid search for optimal parameters
-   - Bayesian optimization
-   - Cross-validated parameter selection
-
-4. **Outlier Treatment**
-   - Separate modeling for high-value properties
-   - Outlier removal and impact analysis
-   - Robust loss functions
-
-5. **External Data**
-   - Economic indicators (interest rates, GDP)
-   - School district ratings
-   - Crime statistics
-   - Local amenities and infrastructure
-
----
-
-## Competition Tips
-
-1. **Public vs Private Leaderboard:**
-   - Public: Based on 50% of test data
-   - Private: Remaining 50% (determines final ranking)
-   - Avoid overfitting to public leaderboard
-
-2. **Submission Strategy:**
-   - Select 2 submissions for final judging
-   - Choose models with best CV scores
-   - Diversify selection (e.g., one conservative, one aggressive)
-
-3. **Best Practices:**
-   - Always use cross-validation
-   - Monitor training vs validation performance
-   - Keep track of feature engineering experiments
-   - Document model versions and parameters
-
----
-
-## References
-
-- **Competition:** [Kaggle House Prices](https://www.kaggle.com/c/house-prices-advanced-regression-techniques)
-- **Dataset Source:** Dean De Cock, Ames Housing Dataset
-- **Original Paper:** [Alternative to Boston Housing Data](http://jse.amstat.org/v19n3/decock.pdf)
-
----
-
-## Author Notes
-
-This solution demonstrates end-to-end machine learning workflow:
-- ✅ Thorough exploratory data analysis
-- ✅ Intelligent feature engineering
-- ✅ Multiple modeling approaches
-- ✅ Robust validation strategy
-- ✅ Production-ready code structure
-
-**Key Takeaway:** In real estate prediction, quality (OverallQual) and total living space (TotalSF) are the most critical factors, with newer homes and desirable neighborhoods commanding significant premiums.
+**Encoding in agent-driven workflows:** When coding agents write non-ASCII characters with the wrong encoding assumption, the resulting mojibake compiles and passes syntax checks but corrupts the UI. The fix -- routing all non-ASCII insertions through escape sequences in a pure-ASCII apply script -- is a pattern I now use by default.
 
 ---
 
 ## License
 
-This project is for educational purposes as part of the Kaggle House Prices competition.
+MIT -- see `LICENSE`.
+
+---
+
+*Haqdaar - Microsoft Agents League 2026 - Creative Apps track - Grounded by Foundry IQ on Azure AI Search - Built with GitHub Copilot and VS Code - Synthetic demo knowledge base - informational only, not legal or financial advice.*
